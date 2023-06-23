@@ -160,7 +160,7 @@ at91_clk_register_h32mx(struct regmap *regmap, const char *name,
 
 struct clk_hw * __init
 at91_clk_i2s_mux_register(struct regmap *regmap, const char *name,
-			  const char * const *parent_names,
+			  const char * const *parent_names, struct clk_hw **parent_hws,
 			  unsigned int num_parents, u8 bus_id);
 
 struct clk_hw * __init

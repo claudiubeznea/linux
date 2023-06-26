@@ -358,7 +358,8 @@ static void __init at91sam926x_pmc_setup(struct device_node *np,
 	if (IS_ERR(hw))
 		goto err_free;
 
-	hw = at91_clk_register_rm9200_main(regmap, "mainck", NULL, hw);
+	parent_data[0] = AT91_CLK_PD_HW(hw);
+	hw = at91_clk_register_rm9200_main(regmap, "mainck", NULL, parent_data);
 	if (IS_ERR(hw))
 		goto err_free;
 

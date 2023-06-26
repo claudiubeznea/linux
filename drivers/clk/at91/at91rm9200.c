@@ -104,7 +104,8 @@ static void __init at91rm9200_pmc_setup(struct device_node *np)
 	if (IS_ERR(main_osc_hw))
 		goto err_free;
 
-	hw = at91_clk_register_rm9200_main(regmap, "mainck", NULL, main_osc_hw);
+	parent_data[0] = AT91_CLK_PD_HW(main_osc_hw);
+	hw = at91_clk_register_rm9200_main(regmap, "mainck", NULL, parent_data);
 	if (IS_ERR(hw))
 		goto err_free;
 

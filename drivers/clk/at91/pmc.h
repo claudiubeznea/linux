@@ -15,11 +15,11 @@
 
 #include <dt-bindings/clock/at91.h>
 
-#define AT91_CLK_PD_NAME(n, i) &(struct clk_parent_data){ \
+#define AT91_CLK_PD_NAME(n, i) (struct clk_parent_data){ \
 	.hw = NULL, .name = (n), .fw_name = (n), .index = (i), \
 }
 
-#define AT91_CLK_PD_HW(h) &(struct clk_parent_data){ .hw = (h) }
+#define AT91_CLK_PD_HW(h) (struct clk_parent_data){ .hw = (h) }
 
 extern spinlock_t pmc_pcr_lock;
 
@@ -183,14 +183,14 @@ at91_clk_register_sam9x5_main(struct regmap *regmap, const char *name,
 struct clk_hw * __init
 at91_clk_register_master_pres(struct regmap *regmap, const char *name,
 			      int num_parents, const char **parent_names,
-			      struct clk_hw **parent_hws,
+			      struct clk_parent_data *parent_data,
 			      const struct clk_master_layout *layout,
 			      const struct clk_master_characteristics *characteristics,
 			      spinlock_t *lock);
 
 struct clk_hw * __init
 at91_clk_register_master_div(struct regmap *regmap, const char *name,
-			     const char *parent_names, struct clk_hw *parent_hw,
+			     const char *parent_names, struct clk_parent_data *parent_data,
 			     const struct clk_master_layout *layout,
 			     const struct clk_master_characteristics *characteristics,
 			     spinlock_t *lock, u32 flags, u32 safe_div);
@@ -199,7 +199,7 @@ struct clk_hw * __init
 at91_clk_sama7g5_register_master(struct regmap *regmap,
 				 const char *name, int num_parents,
 				 const char **parent_names,
-				 struct clk_hw **parent_hws, u32 *mux_table,
+				 struct clk_parent_data *parent_data, u32 *mux_table,
 				 spinlock_t *lock, u8 id, bool critical,
 				 int chg_pid);
 

@@ -179,6 +179,7 @@ static void __init sam9x60_pmc_setup(struct device_node *np)
 {
 	struct clk_range range = CLK_RANGE(0, 0);
 	const char *td_slck_name, *md_slck_name, *mainxtal_name;
+	struct clk_parent_data *parent_data;
 	struct pmc_data *sam9x60_pmc;
 	const char *parent_names[6];
 	struct clk_hw *main_osc_hw;
@@ -232,8 +233,10 @@ static void __init sam9x60_pmc_setup(struct device_node *np)
 
 	sam9x60_pmc->chws[PMC_MAIN] = hw;
 
+	parent_data = &AT91_CLK_PD_HW(sam9x60_pmc->chws[PMC_MAIN]);
 	hw = sam9x60_clk_register_frac_pll(regmap, &pmc_pll_lock, "pllack_fracck",
-					   "mainck", sam9x60_pmc->chws[PMC_MAIN],
+					   "mainck", parent_data,
+					   clk_hw_get_rate(parent_data->hw),
 					   0, &plla_characteristics,
 					   &pll_frac_layout,
 					   /*
@@ -258,9 +261,11 @@ static void __init sam9x60_pmc_setup(struct device_node *np)
 
 	sam9x60_pmc->chws[PMC_PLLACK] = hw;
 
+	parent_data = &AT91_CLK_PD_HW(main_osc_hw);
 	hw = sam9x60_clk_register_frac_pll(regmap, &pmc_pll_lock, "upllck_fracck",
-					   "main_osc", main_osc_hw, 1,
-					   &upll_characteristics,
+					   "main_osc", parent_data,
+					   clk_hw_get_rate(parent_data->hw),
+					   1, &upll_characteristics,
 					   &pll_frac_layout, CLK_SET_RATE_GATE);
 	if (IS_ERR(hw))
 		goto err_free;

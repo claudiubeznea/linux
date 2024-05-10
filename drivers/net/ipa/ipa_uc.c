@@ -217,9 +217,8 @@ void ipa_uc_power(struct ipa *ipa)
 	already = true;		/* Only do this on first boot */
 
 	/* This power reference dropped in ipa_uc_response_hdlr() above */
-	ret = pm_runtime_get_sync(dev);
-	if (ret < 0) {
-		pm_runtime_put_noidle(dev);
+	ret = pm_runtime_resume_and_get(dev);
+	if (ret) {
 		dev_err(dev, "error %d getting proxy power\n", ret);
 	} else {
 		ipa->uc_powered = true;

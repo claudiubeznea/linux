@@ -374,11 +374,10 @@ static int cppi41_dma_alloc_chan_resources(struct dma_chan *chan)
 	struct cppi41_dd *cdd = c->cdd;
 	int error;
 
-	error = pm_runtime_get_sync(cdd->ddev.dev);
-	if (error < 0) {
+	error = pm_runtime_resume_and_get(cdd->ddev.dev);
+	if (error) {
 		dev_err(cdd->ddev.dev, "%s pm runtime get: %i\n",
 			__func__, error);
-		pm_runtime_put_noidle(cdd->ddev.dev);
 
 		return error;
 	}
@@ -401,12 +400,9 @@ static void cppi41_dma_free_chan_resources(struct dma_chan *chan)
 	struct cppi41_dd *cdd = c->cdd;
 	int error;
 
-	error = pm_runtime_get_sync(cdd->ddev.dev);
-	if (error < 0) {
-		pm_runtime_put_noidle(cdd->ddev.dev);
-
+	error = pm_runtime_resume_and_get(cdd->ddev.dev);
+	if (error)
 		return;
-	}
 
 	WARN_ON(!list_empty(&cdd->pending));
 

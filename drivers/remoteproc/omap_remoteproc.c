@@ -541,11 +541,10 @@ static void omap_rproc_kick(struct rproc *rproc, int vqid)
 	int ret;
 
 	/* wake up the rproc before kicking it */
-	ret = pm_runtime_get_sync(dev);
-	if (WARN_ON(ret < 0)) {
-		dev_err(dev, "pm_runtime_get_sync() failed during kick, ret = %d\n",
+	ret = pm_runtime_resume_and_get(dev);
+	if (WARN_ON(ret)) {
+		dev_err(dev, "pm_runtime_resume_and_get() failed during kick, ret = %d\n",
 			ret);
-		pm_runtime_put_noidle(dev);
 		return;
 	}
 
@@ -681,11 +680,9 @@ static int omap_rproc_stop(struct rproc *rproc)
 	 * avoid potential issues in misindentifying a subsequent device
 	 * reboot as a power restore boot
 	 */
-	ret = pm_runtime_get_sync(dev);
-	if (ret < 0) {
-		pm_runtime_put_noidle(dev);
+	ret = pm_runtime_resume_and_get(dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = reset_control_assert(oproc->reset);
 	if (ret)

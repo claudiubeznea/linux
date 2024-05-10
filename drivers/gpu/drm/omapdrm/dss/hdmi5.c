@@ -44,12 +44,10 @@ static int hdmi_runtime_get(struct omap_hdmi *hdmi)
 
 	DSSDBG("hdmi_runtime_get\n");
 
-	r = pm_runtime_get_sync(&hdmi->pdev->dev);
-	if (WARN_ON(r < 0)) {
-		pm_runtime_put_noidle(&hdmi->pdev->dev);
-		return r;
-	}
-	return 0;
+	r = pm_runtime_resume_and_get(&hdmi->pdev->dev);
+	WARN_ON(r);
+
+	return r;
 }
 
 static void hdmi_runtime_put(struct omap_hdmi *hdmi)

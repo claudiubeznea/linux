@@ -360,12 +360,10 @@ static int venc_runtime_get(struct venc_device *venc)
 
 	DSSDBG("venc_runtime_get\n");
 
-	r = pm_runtime_get_sync(&venc->pdev->dev);
-	if (WARN_ON(r < 0)) {
-		pm_runtime_put_noidle(&venc->pdev->dev);
-		return r;
-	}
-	return 0;
+	r = pm_runtime_resume_and_get(&venc->pdev->dev);
+	WARN_ON(r);
+
+	return r;
 }
 
 static void venc_runtime_put(struct venc_device *venc)

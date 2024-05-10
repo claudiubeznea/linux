@@ -704,12 +704,10 @@ static int dsi_runtime_get(struct dsi_data *dsi)
 
 	DSSDBG("dsi_runtime_get\n");
 
-	r = pm_runtime_get_sync(dsi->dev);
-	if (WARN_ON(r < 0)) {
-		pm_runtime_put_noidle(dsi->dev);
-		return r;
-	}
-	return 0;
+	r = pm_runtime_resume_and_get(dsi->dev);
+	WARN_ON(r);
+
+	return r;
 }
 
 static void dsi_runtime_put(struct dsi_data *dsi)

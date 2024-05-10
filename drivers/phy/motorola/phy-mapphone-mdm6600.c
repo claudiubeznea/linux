@@ -240,12 +240,9 @@ static irqreturn_t phy_mdm6600_wakeirq_thread(int irq, void *data)
 		return IRQ_NONE;
 
 	dev_dbg(ddata->dev, "OOB wake on mode_gpio1: %i\n", wakeup);
-	error = pm_runtime_get_sync(ddata->dev);
-	if (error < 0) {
-		pm_runtime_put_noidle(ddata->dev);
-
+	error = pm_runtime_resume_and_get(ddata->dev);
+	if (error)
 		return IRQ_NONE;
-	}
 
 	/* Just wake-up and kick the autosuspend timer */
 	pm_runtime_mark_last_busy(ddata->dev);
@@ -594,10 +591,9 @@ static int phy_mdm6600_probe(struct platform_device *pdev)
 	pm_runtime_set_autosuspend_delay(ddata->dev,
 					 MDM6600_MODEM_IDLE_DELAY_MS);
 	pm_runtime_enable(ddata->dev);
-	error = pm_runtime_get_sync(ddata->dev);
-	if (error < 0) {
+	error = pm_runtime_resume_and_get(ddata->dev);
+	if (error) {
 		dev_warn(ddata->dev, "failed to wake modem: %i\n", error);
-		pm_runtime_put_noidle(ddata->dev);
 		goto cleanup;
 	}
 

@@ -1523,11 +1523,9 @@ static int cpsw_qos_setup_tc_block_cb(enum tc_setup_type type, void *type_data, 
 	if (!tc_cls_can_offload_and_chain0(priv->ndev, type_data))
 		return -EOPNOTSUPP;
 
-	ret = pm_runtime_get_sync(priv->dev);
-	if (ret < 0) {
-		pm_runtime_put_noidle(priv->dev);
+	ret = pm_runtime_resume_and_get(priv->dev);
+	if (ret)
 		return ret;
-	}
 
 	switch (type) {
 	case TC_SETUP_CLSFLOWER:

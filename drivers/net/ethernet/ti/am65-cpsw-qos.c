@@ -1242,12 +1242,9 @@ int am65_cpsw_qos_ndo_tx_p0_set_maxrate(struct net_device *ndev,
 	if (ch_rate == rate_mbps)
 		return 0;
 
-	ret = pm_runtime_get_sync(common->dev);
-	if (ret < 0) {
-		pm_runtime_put_noidle(common->dev);
+	ret = pm_runtime_resume_and_get(common->dev);
+	if (ret)
 		return ret;
-	}
-	ret = 0;
 
 	tx_ch_rate_msk_new = common->tx_ch_rate_msk;
 	if (rate_mbps && !(tx_ch_rate_msk_new & BIT(queue))) {

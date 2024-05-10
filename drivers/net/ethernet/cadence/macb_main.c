@@ -338,11 +338,9 @@ static int macb_mdio_read_c45(struct mii_bus *bus, int mii_id, int devad,
 	struct macb *bp = bus->priv;
 	int status;
 
-	status = pm_runtime_get_sync(&bp->pdev->dev);
-	if (status < 0) {
-		pm_runtime_put_noidle(&bp->pdev->dev);
+	status = pm_runtime_resume_and_get(&bp->pdev->dev);
+	if (status)
 		goto mdio_pm_exit;
-	}
 
 	status = macb_mdio_wait_for_idle(bp);
 	if (status < 0)
@@ -415,11 +413,9 @@ static int macb_mdio_write_c45(struct mii_bus *bus, int mii_id,
 	struct macb *bp = bus->priv;
 	int status;
 
-	status = pm_runtime_get_sync(&bp->pdev->dev);
-	if (status < 0) {
-		pm_runtime_put_noidle(&bp->pdev->dev);
+	status = pm_runtime_resume_and_get(&bp->pdev->dev);
+	if (status)
 		goto mdio_pm_exit;
-	}
 
 	status = macb_mdio_wait_for_idle(bp);
 	if (status < 0)

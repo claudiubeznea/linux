@@ -191,13 +191,7 @@ static void omap2_iommu_disable(struct omap_iommu *obj)
 
 static int iommu_enable(struct omap_iommu *obj)
 {
-	int ret;
-
-	ret = pm_runtime_get_sync(obj->dev);
-	if (ret < 0)
-		pm_runtime_put_noidle(obj->dev);
-
-	return ret < 0 ? ret : 0;
+	return pm_runtime_resume_and_get(obj->dev);
 }
 
 static void iommu_disable(struct omap_iommu *obj)

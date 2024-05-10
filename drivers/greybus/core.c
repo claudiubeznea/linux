@@ -197,11 +197,9 @@ static int greybus_probe(struct device *dev)
 	if (!id)
 		return -ENODEV;
 
-	retval = pm_runtime_get_sync(&bundle->intf->dev);
-	if (retval < 0) {
-		pm_runtime_put_noidle(&bundle->intf->dev);
+	retval = pm_runtime_resume_and_get(&bundle->intf->dev);
+	if (retval)
 		return retval;
-	}
 
 	retval = gb_control_bundle_activate(bundle->intf->control, bundle->id);
 	if (retval) {

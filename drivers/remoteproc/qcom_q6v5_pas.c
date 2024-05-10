@@ -159,9 +159,8 @@ static int qcom_pas_pds_enable(struct qcom_pas *pas, struct device **pds,
 
 	for (i = 0; i < pd_count; i++) {
 		dev_pm_genpd_set_performance_state(pds[i], INT_MAX);
-		ret = pm_runtime_get_sync(pds[i]);
-		if (ret < 0) {
-			pm_runtime_put_noidle(pds[i]);
+		ret = pm_runtime_resume_and_get(pds[i]);
+		if (ret) {
 			dev_pm_genpd_set_performance_state(pds[i], 0);
 			goto unroll_pd_votes;
 		}

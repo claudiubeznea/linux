@@ -239,11 +239,9 @@ static int wcnss_start(struct rproc *rproc)
 
 	for (i = 0; i < wcnss->num_pds; i++) {
 		dev_pm_genpd_set_performance_state(wcnss->pds[i], INT_MAX);
-		ret = pm_runtime_get_sync(wcnss->pds[i]);
-		if (ret < 0) {
-			pm_runtime_put_noidle(wcnss->pds[i]);
+		ret = pm_runtime_resume_and_get(wcnss->pds[i]);
+		if (ret)
 			goto disable_pds;
-		}
 	}
 
 	ret = regulator_bulk_enable(wcnss->num_vregs, wcnss->vregs);

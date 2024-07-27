@@ -314,7 +314,12 @@ fout(2);
 	return !!(readl(ch->base + USB2_ADPCTRL) & USB2_ADPCTRL_IDDIG);
 }
 
-/* Need to protect with spin lock to avoid concurrency w/ IRQ context. */
+/* Need to protect with spin lock to avoid concurrency w/ IRQ context.
+ * This may happen becuase this is called right after the interrupts
+ * are enabled. Thus there is a chance that this to be interrupted
+ * by an IRQ in the initial configuration process and then, re-executed.
+ * In theory it should be harmless but do we want to experiment any
+ * strange behavior? */
 static void rcar_gen3_device_recognition(struct rcar_gen3_chan *ch)
 {
 	bool device;
@@ -324,6 +329,10 @@ fin();
 	pr_err("%s(): dev=%s, LINECTR1=%08x, in IRQ=%d\n", __func__, ch->dev->of_node->full_name,
 			readl(ch->base + USB2_LINECTRL1), in_hardirq());
 
+	/*
+	 * We are reconfiguring here after returning from resume and our
+	 * user is initializing us.
+	 */
 	if (pm_suspend_target_state != PM_SUSPEND_ON && !in_hardirq())
 		device = ch->role == PHY_MODE_USB_DEVICE;
 	else

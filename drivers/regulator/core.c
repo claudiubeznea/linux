@@ -2411,7 +2411,8 @@ static void _regulator_put(struct regulator *regulator)
 	lockdep_assert_held_once(&regulator_list_mutex);
 
 	/* Docs say you must disable before calling regulator_put() */
-	WARN_ON(regulator->enable_count);
+	if (WARN_ON(regulator->enable_count))
+		pr_err("%s(): name=%s\n", __func__, regulator->rdev->desc->name);
 
 	rdev = regulator->rdev;
 

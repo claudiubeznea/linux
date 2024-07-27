@@ -1,3 +1,5 @@
+#define fin() pr_err("%s(): in\n", __func__)
+#define fout(...) pr_err("%s(): out (%d)\n", __func__, ##__VA_ARGS__)
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Renesas RZ/G2L USBPHY control driver
@@ -49,6 +51,7 @@ static int rzg2l_usbphy_ctrl_assert(struct reset_controller_dev *rcdev,
 	void __iomem *base = priv->base;
 	unsigned long flags;
 	u32 val;
+fin();
 
 	spin_lock_irqsave(&priv->lock, flags);
 	val = readl(base + RESET);
@@ -58,6 +61,7 @@ static int rzg2l_usbphy_ctrl_assert(struct reset_controller_dev *rcdev,
 	writel(val, base + RESET);
 	spin_unlock_irqrestore(&priv->lock, flags);
 
+fout(0);
 	return 0;
 }
 
@@ -68,6 +72,7 @@ static int rzg2l_usbphy_ctrl_deassert(struct reset_controller_dev *rcdev,
 	void __iomem *base = priv->base;
 	unsigned long flags;
 	u32 val;
+fin();
 
 	spin_lock_irqsave(&priv->lock, flags);
 	val = readl(base + RESET);
@@ -77,6 +82,7 @@ static int rzg2l_usbphy_ctrl_deassert(struct reset_controller_dev *rcdev,
 	writel(val, base + RESET);
 	spin_unlock_irqrestore(&priv->lock, flags);
 
+fout(0);
 	return 0;
 }
 
@@ -85,11 +91,68 @@ static int rzg2l_usbphy_ctrl_status(struct reset_controller_dev *rcdev,
 {
 	struct rzg2l_usbphy_ctrl_priv *priv = rcdev_to_priv(rcdev);
 	u32 port_mask;
+fin();
 
 	port_mask = id ? PHY_RESET_PORT2 : PHY_RESET_PORT1;
 
+fout(0);
 	return !!(readl(priv->base + RESET) & port_mask);
 }
+
+/* put pll and phy into reset state */
+static void rzg2l_usbphy_ctrl_init(struct rzg2l_usbphy_ctrl_priv *priv)
+{
+	unsigned long flags;
+	u32 val;
+fin();
+
+	spin_lock_irqsave(&priv->lock, flags);
+	val = readl(priv->base + RESET);
+	val |= RESET_SEL_PLLRESET | RESET_PLLRESET | PHY_RESET_PORT2 | PHY_RESET_PORT1;
+	writel(val, priv->base + RESET);
+
+	//mdelay(1000);
+	spin_unlock_irqrestore(&priv->lock, flags);
+fout(0);
+}
+
+static int rzg2l_usbphy_ctrl_suspend(struct device *dev)
+{
+	struct rzg2l_usbphy_ctrl_priv *priv = dev_get_drvdata(dev);
+fin();
+
+	pm_runtime_put(dev);
+
+fout(0);
+	return reset_control_assert(priv->rstc);
+}
+
+static int rzg2l_usbphy_ctrl_resume(struct device *dev)
+{
+	struct rzg2l_usbphy_ctrl_priv *priv = dev_get_drvdata(dev);
+	int ret;
+fin();
+
+	ret = reset_control_deassert(priv->rstc);
+	if (ret)
+{
+fout(0);
+		return ret;
+}
+
+	ret = pm_runtime_resume_and_get(dev);
+	if (ret)
+		reset_control_assert(priv->rstc);
+
+	rzg2l_usbphy_ctrl_init(priv);
+
+fout(1);
+	return 0;
+}
+
+DEFINE_SIMPLE_DEV_PM_OPS(rzg2l_usbphy_ctrl_pm_ops,
+			 rzg2l_usbphy_ctrl_suspend,
+			 rzg2l_usbphy_ctrl_resume);
 
 static const struct of_device_id rzg2l_usbphy_ctrl_match_table[] = {
 	{ .compatible = "renesas,rzg2l-usbphy-ctrl" },
@@ -116,30 +179,41 @@ static int rzg2l_usbphy_ctrl_probe(struct platform_device *pdev)
 	struct rzg2l_usbphy_ctrl_priv *priv;
 	struct platform_device *vdev;
 	struct regmap *regmap;
-	unsigned long flags;
 	int error;
-	u32 val;
+fin();
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
+{
+fout(0);
 		return -ENOMEM;
+}
 
 	priv->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->base))
+{
+fout(1);
 		return PTR_ERR(priv->base);
+}
 
 	regmap = devm_regmap_init_mmio(dev, priv->base + VBENCTL, &rzg2l_usb_regconf);
 	if (IS_ERR(regmap))
+{
+fout(2);
 		return PTR_ERR(regmap);
+}
 
-	priv->rstc = devm_reset_control_get_exclusive(&pdev->dev, NULL);
+	priv->rstc = devm_reset_control_get_exclusive(dev, NULL);
 	if (IS_ERR(priv->rstc))
 		return dev_err_probe(dev, PTR_ERR(priv->rstc),
 				     "failed to get reset\n");
 
 	error = reset_control_deassert(priv->rstc);
 	if (error)
+{
+fout(3);
 		return error;
+}
 
 	spin_lock_init(&priv->lock);
 	dev_set_drvdata(dev, priv);
@@ -151,12 +225,7 @@ static int rzg2l_usbphy_ctrl_probe(struct platform_device *pdev)
 		goto err_pm_disable_reset_deassert;
 	}
 
-	/* put pll and phy into reset state */
-	spin_lock_irqsave(&priv->lock, flags);
-	val = readl(priv->base + RESET);
-	val |= RESET_SEL_PLLRESET | RESET_PLLRESET | PHY_RESET_PORT2 | PHY_RESET_PORT1;
-	writel(val, priv->base + RESET);
-	spin_unlock_irqrestore(&priv->lock, flags);
+	rzg2l_usbphy_ctrl_init(priv);
 
 	priv->rcdev.ops = &rzg2l_usbphy_ctrl_reset_ops;
 	priv->rcdev.of_reset_n_cells = 1;
@@ -176,36 +245,43 @@ static int rzg2l_usbphy_ctrl_probe(struct platform_device *pdev)
 	vdev->dev.parent = dev;
 	priv->vdev = vdev;
 
+	device_set_of_node_from_dev(&vdev->dev, dev);
 	error = platform_device_add(vdev);
 	if (error)
 		goto err_device_put;
 
+fout(4);
 	return 0;
 
 err_device_put:
 	platform_device_put(vdev);
 err_pm_runtime_put:
-	pm_runtime_put(&pdev->dev);
+	pm_runtime_put(dev);
 err_pm_disable_reset_deassert:
-	pm_runtime_disable(&pdev->dev);
+	pm_runtime_disable(dev);
 	reset_control_assert(priv->rstc);
+fout(5);
 	return error;
 }
 
 static void rzg2l_usbphy_ctrl_remove(struct platform_device *pdev)
 {
-	struct rzg2l_usbphy_ctrl_priv *priv = dev_get_drvdata(&pdev->dev);
+	struct device *dev = &pdev->dev;
+	struct rzg2l_usbphy_ctrl_priv *priv = dev_get_drvdata(dev);
+fin();
 
 	platform_device_unregister(priv->vdev);
-	pm_runtime_put(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
+	pm_runtime_put(dev);
+	pm_runtime_disable(dev);
 	reset_control_assert(priv->rstc);
+fout(0);
 }
 
 static struct platform_driver rzg2l_usbphy_ctrl_driver = {
 	.driver = {
 		.name		= "rzg2l_usbphy_ctrl",
 		.of_match_table	= rzg2l_usbphy_ctrl_match_table,
+		.pm		= pm_ptr(&rzg2l_usbphy_ctrl_pm_ops),
 	},
 	.probe	= rzg2l_usbphy_ctrl_probe,
 	.remove_new = rzg2l_usbphy_ctrl_remove,

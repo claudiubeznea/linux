@@ -71,5 +71,6 @@ const struct renesas_usbhs_platform_info usbhs_rcar_gen2_plat_info = {
 	.driver_param = {
 		.has_usb_dmac = 1,
 		.has_new_pipe_configs = 1,
+		//.get_vbus = 1, for runtime pwrctrl
 	},
 };

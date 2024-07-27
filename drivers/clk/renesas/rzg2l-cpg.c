@@ -11,6 +11,7 @@
  * Copyright (C) 2015 Renesas Electronics Corp.
  */
 
+#include <linux/arm-smccc.h>
 #include <linux/bitfield.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
@@ -1210,7 +1211,7 @@ static int rzg2l_mod_clock_endisable(struct clk_hw *hw, bool enable)
 		return 0;
 	}
 
-	dev_dbg(dev, "CLK_ON 0x%x/%pC %s\n", CLK_ON_R(reg), hw->clk,
+	pr_err("CLK_ON 0x%x/%pC %s\n", CLK_ON_R(reg), hw->clk,
 		enable ? "ON" : "OFF");
 
 	value = bitmask << 16;
@@ -1658,8 +1659,12 @@ static int rzg2l_cpg_power_on(struct generic_pm_domain *domain)
 	struct rzg2l_cpg_priv *priv = pd->priv;
 
 	/* Set MSTOP. */
-	if (mstop.mask)
+	if (mstop.mask) {
+		pr_err("%s(): mstop.mask=%08x, mstop.off=%08x\n", __func__, mstop.mask, mstop.off);
 		writel(mstop.mask << 16, priv->base + mstop.off);
+		if (mstop.mask & (BIT(7) | BIT(6) | BIT(5)))
+			;//dump_stack();
+	}
 
 	return 0;
 }
@@ -1671,15 +1676,69 @@ static int rzg2l_cpg_power_off(struct generic_pm_domain *domain)
 	struct rzg2l_cpg_priv *priv = pd->priv;
 
 	/* Set MSTOP. */
-	if (mstop.mask)
+	if (mstop.mask) {
+		pr_err("%s(): mstop.mask=%08x, mstop.off=%08x\n", __func__, mstop.mask, mstop.off);
+
 		writel(mstop.mask | (mstop.mask << 16), priv->base + mstop.off);
+	
+		if (mstop.mask & (BIT(7) | BIT(6) | BIT(5)))
+			;//dump_stack();
+	
+	}
 
 	return 0;
+}
+
+static int rzg2l_cpg_fw_usb_power_on(struct generic_pm_domain *domain)
+{
+	struct rzg2l_cpg_pd *pd = container_of(domain, struct rzg2l_cpg_pd, genpd);
+	struct rzg2l_cpg_reg_conf usb = pd->conf.usb;
+	struct arm_smccc_res res;
+
+	pr_err("%s(): in, cookie=%x\n", __func__, usb.cookie);
+
+	arm_smccc_smc(usb.cookie, pd->conf.usb.off, 0, 0, 0, 0, 0, 0, &res);
+	if (res.a0 != usb.cookie) {
+		pr_err("%s(): failed to power on\n", __func__);
+		return -EINVAL;
+	}
+	return 0;
+}
+
+static int rzg2l_cpg_fw_usb_power_off(struct generic_pm_domain *domain)
+{
+	struct rzg2l_cpg_pd *pd = container_of(domain, struct rzg2l_cpg_pd, genpd);
+	struct rzg2l_cpg_reg_conf usb = pd->conf.usb;
+	struct arm_smccc_res res;
+
+	pr_err("%s(): out\n", __func__);
+
+	arm_smccc_smc(usb.cookie, usb.off, usb.mask, 0, 0, 0, 0, 0, &res);
+	if (res.a0 != usb.cookie) {
+		pr_err("%s(): failed to power off", __func__);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int __init rzg2l_cpg_fw_pd_setup_usb(struct rzg2l_cpg_pd *pd, bool always_on)
+{
+	pr_err("%s(): setup usb PD\n", __func__);
+
+	pd->genpd.flags = GENPD_FLAG_ACTIVE_WAKEUP;
+	pd->genpd.power_on = rzg2l_cpg_fw_usb_power_on;
+	pd->genpd.power_off = rzg2l_cpg_fw_usb_power_off;
+
+	return pm_genpd_init(&pd->genpd, &simple_qos_governor, !always_on);
 }
 
 static int __init rzg2l_cpg_pd_setup(struct rzg2l_cpg_pd *pd, bool always_on)
 {
 	struct dev_power_governor *governor;
+
+	if (pd->id == RZG3S_PD_USB)
+		return rzg2l_cpg_fw_pd_setup_usb(pd, always_on);
 
 	pd->genpd.flags |= GENPD_FLAG_PM_CLK | GENPD_FLAG_ACTIVE_WAKEUP;
 	pd->genpd.attach_dev = rzg2l_cpg_attach_dev;
@@ -1744,11 +1803,11 @@ rzg2l_cpg_pm_domain_xlate(const struct of_phandle_args *spec, void *data)
 
 static int __init rzg2l_cpg_add_pm_domains(struct rzg2l_cpg_priv *priv)
 {
+	struct generic_pm_domain *default_parent, *usb_parent;
 	const struct rzg2l_cpg_info *info = priv->info;
 	struct device *dev = priv->dev;
 	struct device_node *np = dev->of_node;
 	struct rzg2l_cpg_pm_domains *domains;
-	struct generic_pm_domain *parent;
 	u32 ncells;
 	int ret;
 
@@ -1775,6 +1834,7 @@ static int __init rzg2l_cpg_add_pm_domains(struct rzg2l_cpg_priv *priv)
 
 	for (unsigned int i = 0; i < info->num_pm_domains; i++) {
 		bool always_on = !!(info->pm_domains[i].flags & RZG2L_PD_F_ALWAYS_ON);
+		struct generic_pm_domain *parent;
 		struct rzg2l_cpg_pd *pd;
 
 		pd = devm_kzalloc(dev, sizeof(*pd), GFP_KERNEL);
@@ -1798,10 +1858,17 @@ static int __init rzg2l_cpg_add_pm_domains(struct rzg2l_cpg_priv *priv)
 
 		domains->domains[i] = &pd->genpd;
 		/* Parent should be on the very first entry of info->pm_domains[]. */
-		if (!i) {
-			parent = &pd->genpd;
+		if (info->pm_domains[i].parent == RZG2L_PD_PARENT_ROOT) {
+			default_parent = &pd->genpd;
 			continue;
 		}
+		if (info->pm_domains[i].id == RZG3S_PD_USB)
+			usb_parent = &pd->genpd;
+
+		if (info->pm_domains[i].parent == RZG2L_PD_PARENT_DEFAULT)
+			parent = default_parent;
+		else if (info->pm_domains[i].parent == RZG2L_PD_PARENT_USB)
+			parent = usb_parent;
 
 		ret = pm_genpd_add_subdomain(parent, &pd->genpd);
 		if (ret)

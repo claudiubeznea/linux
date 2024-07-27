@@ -313,6 +313,7 @@ static int usbhsc_clk_get(struct device *dev, struct usbhs_priv *priv)
 	if (PTR_ERR(priv->clks[1]) == -ENOENT)
 		priv->clks[1] = NULL;
 	else if (IS_ERR(priv->clks[1]))
+		// clk_put() ??
 		return PTR_ERR(priv->clks[1]);
 
 	return 0;
@@ -708,7 +709,7 @@ static int usbhs_probe(struct platform_device *pdev)
 		goto probe_fail_clks;
 
 	/*
-	 * deviece reset here because
+	 * device reset here because
 	 * USB device might be used in boot loader.
 	 */
 	usbhs_sys_clock_ctrl(priv, 0);
@@ -776,11 +777,17 @@ probe_end_pipe_exit:
 static void usbhs_remove(struct platform_device *pdev)
 {
 	struct usbhs_priv *priv = usbhs_pdev_to_priv(pdev);
+	struct usbhs_mod *mod = usbhs_mod_get_current(priv);
 
 	dev_dbg(&pdev->dev, "usb remove\n");
 
 	/* power off */
-	if (!usbhs_get_dparam(priv, runtime_pwctrl))
+	if (mod) {
+		usbhs_mod_call(priv, stop, priv);
+		usbhs_mod_change(priv, -1);
+	}
+
+	if (mod || !usbhs_get_dparam(priv, runtime_pwctrl))
 		usbhsc_power_ctrl(priv, 0);
 
 	pm_runtime_disable(&pdev->dev);
@@ -806,13 +813,18 @@ static __maybe_unused int usbhsc_suspend(struct device *dev)
 	if (mod || !usbhs_get_dparam(priv, runtime_pwctrl))
 		usbhsc_power_ctrl(priv, 0);
 
-	return 0;
+	return reset_control_assert(priv->rsts);
 }
 
 static __maybe_unused int usbhsc_resume(struct device *dev)
 {
 	struct usbhs_priv *priv = dev_get_drvdata(dev);
 	struct platform_device *pdev = usbhs_priv_to_pdev(priv);
+	int ret;
+
+	ret = reset_control_deassert(priv->rsts);
+	if (ret)
+		return ret;
 
 	if (!usbhs_get_dparam(priv, runtime_pwctrl)) {
 		usbhsc_power_ctrl(priv, 1);

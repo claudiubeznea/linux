@@ -17,6 +17,7 @@ static int usbhs_rza2_hardware_init(struct platform_device *pdev)
 	struct usbhs_priv *priv = usbhs_pdev_to_priv(pdev);
 	struct phy *phy = phy_get(&pdev->dev, "usb");
 
+	// seteaza aici AHB_USB_CTRL
 	if (IS_ERR(phy))
 		return PTR_ERR(phy);
 
@@ -44,6 +45,7 @@ static int usbhs_rza2_power_ctrl(struct platform_device *pdev,
 		return -ENODEV;
 
 	if (enable) {
+		// seteaza aici AHB_BUS_CTR
 		retval = phy_init(priv->phy);
 		usbhs_bset(priv, SUSPMODE, SUSPM, SUSPM);
 		udelay(100);	/* Wait for PLL to become stable */

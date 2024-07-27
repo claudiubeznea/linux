@@ -1279,8 +1279,10 @@ static int hcd_alloc_coherent(struct usb_bus *bus,
 	 * memory footprint over access speed since the amount
 	 * of memory available for dma may be limited.
 	 */
+	pr_err("%s(): size=%d, vaddr=%x\n", __func__, size + sizeof(unsigned long));
 	put_unaligned((unsigned long)*vaddr_handle,
 		      (unsigned long *)(vaddr + size));
+	pr_err("%s(): size=%d, vaddr=%x (aligned)\n", __func__, size + sizeof(unsigned long));
 
 	if (dir == DMA_TO_DEVICE)
 		memcpy(vaddr, *vaddr_handle, size);
@@ -1394,8 +1396,10 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 	 */
 
 	if (usb_endpoint_xfer_control(&urb->ep->desc)) {
-		if (hcd->self.uses_pio_for_control)
+		if (hcd->self.uses_pio_for_control) {
+			pr_err("%s(): pio\n", __func__);
 			return ret;
+		}
 		if (hcd->localmem_pool) {
 			ret = hcd_alloc_coherent(
 					urb->dev->bus, mem_flags,
@@ -1407,6 +1411,7 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 				return ret;
 			urb->transfer_flags |= URB_SETUP_MAP_LOCAL;
 		} else if (hcd_uses_dma(hcd)) {
+			pr_err("%s(): DMA\n", __func__);
 			if (object_is_on_stack(urb->setup_packet)) {
 				WARN_ONCE(1, "setup packet is on stack\n");
 				return -EAGAIN;
@@ -1420,6 +1425,8 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 			if (dma_mapping_error(hcd->self.sysdev,
 						urb->setup_dma))
 				return -EAGAIN;
+
+			pr_err("%s(): urb->setup_packet=%x\n", __func__, urb->setup_packet);
 			urb->transfer_flags |= URB_SETUP_MAP_SINGLE;
 		}
 	}
@@ -1486,6 +1493,7 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 					ret = -EAGAIN;
 				else
 					urb->transfer_flags |= URB_DMA_MAP_SINGLE;
+				pr_err("%s(): transfer_buffer=%x\n", __func__, urb->transfer_buffer);
 			}
 		}
 		if (ret && (urb->transfer_flags & (URB_SETUP_MAP_SINGLE |

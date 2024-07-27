@@ -35,6 +35,7 @@ properties:
               - renesas,usb2-phy-r9a07g043 # RZ/G2UL
               - renesas,usb2-phy-r9a07g044 # RZ/G2{L,LC}
               - renesas,usb2-phy-r9a07g054 # RZ/V2L
+              - renesas,usb2-phy-r9a08g045 # RZ/G3S
           - const: renesas,rzg2l-usb2-phy
 
   reg:

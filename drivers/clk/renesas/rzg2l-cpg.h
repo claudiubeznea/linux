@@ -248,22 +248,32 @@ struct rzg2l_reset {
 
 /**
  * struct rzg2l_cpg_reg_conf - RZ/G2L register configuration data structure
+ * @cookie: cookie for PM domain hooks
  * @off: register offset
  * @mask: register mask
  */
 struct rzg2l_cpg_reg_conf {
+	u32 cookie;
 	u16 off;
 	u16 mask;
 };
 
-#define DEF_REG_CONF(_off, _mask) ((struct rzg2l_cpg_reg_conf) { .off = (_off), .mask = (_mask) })
+#define DEF_REG_TYPE(_off, _mask...) \
+	{ .off = _off, .mask = _mask }
+#define DEF_REG_CONF(_off, _mask) \
+	{{ (struct rzg2l_cpg_reg_conf) DEF_REG_TYPE(_off, _mask) }}
+#define DEF_REG_CONF_COOKIE(_off, _mask, _cookie) \
+	{{ (struct rzg2l_cpg_reg_conf) DEF_REG_TYPE(_off, _mask, .cookie = _cookie) }}
 
 /**
  * struct rzg2l_cpg_pm_domain_conf - PM domain configuration data structure
  * @mstop: MSTOP register configuration
  */
 struct rzg2l_cpg_pm_domain_conf {
-	struct rzg2l_cpg_reg_conf mstop;
+	union {
+		struct rzg2l_cpg_reg_conf mstop;
+		struct rzg2l_cpg_reg_conf usb;
+	};
 };
 
 /**
@@ -279,21 +289,29 @@ struct rzg2l_cpg_pm_domain_init_data {
 	struct rzg2l_cpg_pm_domain_conf conf;
 	u32 flags;
 	u16 id;
+	u8 parent;
 };
 
-#define DEF_PD(_name, _id, _mstop_conf, _flags) \
+#define DEF_PD(_name, _id, _conf, _parent, _flags) \
 	{ \
 		.name = (_name), \
 		.id = (_id), \
-		.conf = { \
-			.mstop = (_mstop_conf), \
-		}, \
+		.conf = _conf, \
+		.parent = (_parent), \
 		.flags = (_flags), \
 	}
 
 /* Power domain flags. */
 #define RZG2L_PD_F_ALWAYS_ON	BIT(0)
 #define RZG2L_PD_F_NONE		(0)
+
+/* Power domain parent identifiers. */
+#define RZG2L_PD_PARENT_ROOT	BIT(0)
+#define RZG2L_PD_PARENT_DEFAULT	BIT(1)
+#define RZG2L_PD_PARENT_USB	BIT(2)
+
+/* RZ/G3S USB power domain identifier (internal to driver code). */
+#define RZG3S_PD_USB		U16_MAX
 
 /**
  * struct rzg2l_cpg_info - SoC-specific CPG Description

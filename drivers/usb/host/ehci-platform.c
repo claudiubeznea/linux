@@ -44,6 +44,8 @@
 
 #define BCM_USB_FIFO_THRESHOLD	0x00800040
 
+#define	G3S_AHB_BUS_CTR	0x108
+
 struct ehci_platform_priv {
 	struct clk *clks[EHCI_MAX_CLKS];
 	struct reset_control *rsts;
@@ -111,8 +113,7 @@ static void ehci_platform_power_off(struct platform_device *dev)
 	int clk;
 
 	for (clk = EHCI_MAX_CLKS - 1; clk >= 0; clk--)
-		if (priv->clks[clk])
-			clk_disable_unprepare(priv->clks[clk]);
+		clk_disable_unprepare(priv->clks[clk]);
 }
 
 static struct hc_driver __read_mostly ehci_platform_hc_driver;
@@ -230,6 +231,11 @@ static void quirk_poll_end(struct ehci_platform_priv *priv)
 
 static const struct soc_device_attribute quirk_poll_match[] = {
 	{ .family = "R-Car Gen3" },
+	{ /* sentinel*/ }
+};
+
+static const struct soc_device_attribute rzg3s_match[] = {
+	{ .family = "RZ/G3S" },
 	{ /* sentinel*/ }
 };
 
@@ -364,6 +370,10 @@ static int ehci_platform_probe(struct platform_device *dev)
 		err = PTR_ERR(hcd->regs);
 		goto err_power;
 	}
+
+	if (soc_device_match(rzg3s_match))
+		writel(2, hcd->regs + G3S_AHB_BUS_CTR);
+
 	hcd->rsrc_start = res_mem->start;
 	hcd->rsrc_len = resource_size(res_mem);
 
@@ -441,8 +451,10 @@ static int __maybe_unused ehci_platform_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
-	if (pdata->power_suspend)
+	if (pdata->power_suspend && !do_wakeup) {
 		pdata->power_suspend(pdev);
+		ret = reset_control_assert(priv->rsts);
+	}
 
 	return ret;
 }
@@ -453,9 +465,15 @@ static int __maybe_unused ehci_platform_resume(struct device *dev)
 	struct usb_ehci_pdata *pdata = dev_get_platdata(dev);
 	struct platform_device *pdev = to_platform_device(dev);
 	struct ehci_platform_priv *priv = hcd_to_ehci_priv(hcd);
+	bool do_wakeup = device_may_wakeup(dev);
 	struct device *companion_dev;
+	int ret;
 
-	if (pdata->power_on) {
+	if (pdata->power_on && !do_wakeup) {
+		ret = reset_control_deassert(priv->rsts);
+		if (ret)
+			return ret;
+
 		int err = pdata->power_on(pdev);
 		if (err < 0)
 			return err;
@@ -466,6 +484,9 @@ static int __maybe_unused ehci_platform_resume(struct device *dev)
 		device_pm_wait_for_dev(hcd->self.controller, companion_dev);
 		put_device(companion_dev);
 	}
+
+	if (soc_device_match(rzg3s_match))
+		writel(2, hcd->regs + G3S_AHB_BUS_CTR);
 
 	ehci_resume(hcd, priv->reset_on_resume);
 

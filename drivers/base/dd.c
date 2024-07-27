@@ -785,7 +785,7 @@ static int __driver_probe_device(const struct device_driver *drv, struct device 
 		return -EBUSY;
 
 	dev->can_match = true;
-	dev_dbg(dev, "bus: '%s': %s: matched device with driver %s\n",
+	pr_err("bus: '%s': %s: matched device with driver %s\n",
 		drv->bus->name, __func__, drv->name);
 
 	pm_runtime_get_suppliers(dev);

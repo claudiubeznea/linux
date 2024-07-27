@@ -536,7 +536,7 @@ fin();
 	pr_err("%s(): after sleep: dev=%s\n", __func__, ch->dev->of_node->full_name);
 
 	val = readl(usb2_base + USB2_OBINTSTA);
-	val |= BIT(17) | BIT(16) | BIT(6) | BIT(5) | BIT(4) | BIT(1) | BIT(0);
+	val |= BIT(17) | BIT(16) | BIT(6) | BIT(4) | BIT(1) | BIT(0);
 	writel(val, usb2_base + USB2_OBINTSTA);
 	writel(ch->obint_enable_bits, usb2_base + USB2_OBINTEN);
 
@@ -646,6 +646,8 @@ fin();
 
 	val &= ~USB2_INT_ENABLE_UCOM_INTEN;
 	writel(val, usb2_base + USB2_INT_ENABLE);
+	writel(0, usb2_base + USB2_OBINTEN);
+
 	if (channel->irq >= 0)
 		free_irq(channel->irq, channel);
 

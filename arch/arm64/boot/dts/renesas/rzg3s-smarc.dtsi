@@ -193,7 +193,6 @@
 	pinctrl-0 = <&usb0_pins>;
 	pinctrl-names = "default";
 	vbus-supply = <&usb0_vbus_otg>;
-//	phy-supply = <&usb0_vbus_otg>;
 	status = "okay";
 };
 

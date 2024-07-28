@@ -1140,7 +1140,7 @@ static int clk_core_prepare(struct clk_core *core)
 
 	core->prepare_count++;
 	if (!strcmp(core->name, "usb_pclk") && core->prepare_count >= 10)
-		dump_stack();
+		;//dump_stack();
 
 	/*
 	 * CLK_SET_RATE_GATE is a special case of clock protection

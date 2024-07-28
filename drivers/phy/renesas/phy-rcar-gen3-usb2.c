@@ -25,6 +25,8 @@
 #include <linux/usb/of.h>
 #include <linux/workqueue.h>
 
+#include <linux/reset.h>
+
 /******* USB2.0 Host registers (original offset is +0x200) *******/
 #define USB2_INT_ENABLE		0x000
 #define USB2_USBCTR		0x00c
@@ -115,6 +117,7 @@ struct rcar_gen3_chan {
 	struct regulator *vbus;
 	struct work_struct work;
 	struct mutex lock;	/* protects rphys[...].powered */
+	spinlock_t slock;
 	enum usb_dr_mode dr_mode;
 	int irq;
 	u32 obint_enable_bits;
@@ -419,9 +422,9 @@ fout(1);
 	return true;
 }
 
-static void rcar_gen3_config_default(struct device *dev)
+static void rcar_gen3_config_default(struct rcar_gen3_chan *ch)
 {
-	struct rcar_gen3_chan *ch = dev_get_drvdata(dev);
+//	struct rcar_gen3_chan *ch = dev_get_drvdata(dev);
 	bool is_b_device;
 	enum phy_mode cur_mode, new_mode;
 
@@ -436,14 +439,12 @@ fout(2);
 		return;
 }
 
-	mutex_lock(&ch->lock);
 	if (!is_b_device)	/* A-Host */
 		rcar_gen3_init_for_a_peri(ch);
 	else			/* B-Host */
 		rcar_gen3_init_for_peri(ch);
 
 	ch->role = PHY_MODE_USB_DEVICE;
-	mutex_unlock(&ch->lock);
 
 }
 static ssize_t role_store(struct device *dev, struct device_attribute *attr,
@@ -452,6 +453,7 @@ static ssize_t role_store(struct device *dev, struct device_attribute *attr,
 	struct rcar_gen3_chan *ch = dev_get_drvdata(dev);
 	bool is_b_device;
 	enum phy_mode cur_mode, new_mode;
+	unsigned long flags;
 fin();
 
 	if (!ch->is_otg_channel || !rcar_gen3_is_any_rphy_initialized(ch))
@@ -481,7 +483,7 @@ fout(2);
 		return -EINVAL;
 }
 
-	mutex_lock(&ch->lock);
+	spin_lock_irqsave(&ch->slock, flags);
 	if (new_mode == PHY_MODE_USB_HOST) { /* And is_host must be false */
 		if (!is_b_device)	/* A-Peripheral */
 			rcar_gen3_init_from_a_peri_to_a_host(ch);
@@ -495,7 +497,7 @@ fout(2);
 	}
 
 	ch->role = new_mode;
-	mutex_unlock(&ch->lock);
+	spin_unlock_irqrestore(&ch->slock, flags);
 
 fout(3);
 	return count;
@@ -530,6 +532,7 @@ fin();
 	val = (val & ~USB2_LINECTRL1_DP_RPD) | USB2_LINECTRL1_DPRPD_EN |
 	      USB2_LINECTRL1_DMRPD_EN | USB2_LINECTRL1_DM_RPD;
 	writel(val, usb2_base + USB2_LINECTRL1);
+	readl(usb2_base + USB2_LINECTRL1);
 
 	if (!ch->soc_no_adp_ctrl) {
 		val = readl(usb2_base + USB2_VBCTRL);
@@ -540,14 +543,16 @@ fin();
 	}
 //	wmb();
 	pr_err("%s(): before sleep: dev=%s\n", __func__, ch->dev->of_node->full_name);
-	msleep(20);
+	mdelay(20);
 
 	pr_err("%s(): after sleep: dev=%s\n", __func__, ch->dev->of_node->full_name);
 
 	val = readl(usb2_base + USB2_OBINTSTA);
 	val |= BIT(17) | BIT(16) | BIT(6) | BIT(4) | BIT(1) | BIT(0);
 	writel(val, usb2_base + USB2_OBINTSTA);
+	readl(usb2_base + USB2_OBINTSTA);
 	writel(ch->obint_enable_bits, usb2_base + USB2_OBINTEN);
+	readl(usb2_base + USB2_OBINTEN);
 
 	rcar_gen3_device_recognition(ch);
 fout(0);
@@ -561,6 +566,8 @@ static irqreturn_t rcar_gen3_phy_usb2_irq(int irq, void *_ch)
 	irqreturn_t ret = IRQ_NONE;
 fin();
 
+	spin_lock(&ch->slock);
+
 	if (status & ch->obint_enable_bits) {
 		dev_vdbg(ch->dev, "%s: %08x\n", __func__, status);
 		writel(ch->obint_enable_bits, usb2_base + USB2_OBINTSTA);
@@ -568,6 +575,7 @@ fin();
 		ret = IRQ_HANDLED;
 	}
 
+	spin_unlock(&ch->slock);
 fout(0);
 	return ret;
 }
@@ -577,16 +585,18 @@ static int rcar_gen3_phy_usb2_init(struct phy *p)
 	struct rcar_gen3_phy *rphy = phy_get_drvdata(p);
 	struct rcar_gen3_chan *channel = rphy->ch;
 	void __iomem *usb2_base = channel->base;
+	unsigned long flags;
 	u32 val;
 	int ret;
 fin();
 
 
-	pr_err("%s(): dev=%s, phy=%s\n", __func__, channel->dev->of_node->full_name,
-			rphy->phy->dev.of_node->full_name);
+	pr_err("%s(): dev=%s, phy=%s, int_enable_bits=%x\n", __func__, channel->dev->of_node->full_name,
+			rphy->phy->dev.of_node->full_name,
+			rphy->int_enable_bits);
 //dump_stack();
 
-	mutex_lock(&channel->lock);
+	spin_lock_irqsave(&channel->slock, flags);
 
 	if (!rcar_gen3_is_any_rphy_initialized(channel) && channel->irq >= 0) {
 		INIT_WORK(&channel->work, rcar_gen3_phy_usb2_work);
@@ -599,20 +609,28 @@ fout(0);
 		}
 	}
 
+	val = readl(usb2_base + USB2_USBCTR);
+	val &= ~BIT(0);
+	writel(val, usb2_base + USB2_USBCTR);
+
 	/* Initialize USB2 part */
 	val = readl(usb2_base + USB2_INT_ENABLE);
 	val |= USB2_INT_ENABLE_UCOM_INTEN | rphy->int_enable_bits;
 	writel(val, usb2_base + USB2_INT_ENABLE);
 
-	if (rcar_gen3_is_any_rphy_initialized(channel)) {
+	if (0 && rcar_gen3_is_any_rphy_initialized(channel) && rphy->int_enable_bits) {
 		if (channel->is_otg_channel) {
 			rphy->otg_initialized = true;
 			goto set_init;
 		}
 	}
 
-	writel(USB2_SPD_RSM_TIMSET_INIT, usb2_base + USB2_SPD_RSM_TIMSET);
-	writel(USB2_OC_TIMSET_INIT, usb2_base + USB2_OC_TIMSET);
+	if (!rphy->int_enable_bits)
+		goto set_init;
+	else {
+		writel(USB2_SPD_RSM_TIMSET_INIT, usb2_base + USB2_SPD_RSM_TIMSET);
+		writel(USB2_OC_TIMSET_INIT, usb2_base + USB2_OC_TIMSET);
+	}
 
 	/* Initialize otg part */
 	if (channel->is_otg_channel) {
@@ -625,7 +643,7 @@ set_init:
 	rphy->initialized = true;
 
 unlock:
-	mutex_unlock(&channel->lock);
+	spin_unlock_irqrestore(&channel->slock, flags);
 fout(1);
 	return 0;
 }
@@ -636,18 +654,20 @@ static int rcar_gen3_phy_usb2_exit(struct phy *p)
 	struct rcar_gen3_chan *channel = rphy->ch;
 	void __iomem *usb2_base = channel->base;
 	u32 val;
+	unsigned long flags;
 fin();
 
 	pr_err("%s(): dev=%s\n", __func__, channel->dev->of_node->full_name);
 
-	mutex_lock(&channel->lock);
+	spin_lock_irqsave(&channel->slock, flags);
 
 	rphy->initialized = false;
 	if (channel->is_otg_channel)
 		rphy->otg_initialized = false;
 
 	val = readl(usb2_base + USB2_INT_ENABLE);
-	val &= ~rphy->int_enable_bits;
+	if (rphy->int_enable_bits)
+		val &= ~rphy->int_enable_bits;
 	if (rcar_gen3_is_any_rphy_initialized(channel)) {
 		writel(val, usb2_base + USB2_INT_ENABLE);
 		goto unlock;
@@ -656,12 +676,22 @@ fin();
 	val &= ~USB2_INT_ENABLE_UCOM_INTEN;
 	writel(val, usb2_base + USB2_INT_ENABLE);
 	writel(0, usb2_base + USB2_OBINTEN);
+	val = readl(usb2_base + USB2_OBINTSTA);
+	writel(val, usb2_base + USB2_OBINTSTA);
+	writel(0, usb2_base + USB2_LINECTRL1);
+
+	/* Uninit OTG. */
+	rcar_gen3_config_default(channel);
+
+	val = readl(usb2_base + USB2_USBCTR);
+	val |= BIT(0);
+	writel(val, usb2_base + USB2_USBCTR);
 
 	if (channel->irq >= 0)
 		free_irq(channel->irq, channel);
 
 unlock:
-	mutex_unlock(&channel->lock);
+	spin_unlock_irqrestore(&channel->slock, flags);
 
 fout(0);
 	return 0;
@@ -675,12 +705,13 @@ static int rcar_gen3_phy_usb2_power_on(struct phy *p)
 	u32 val;
 	int ret = 0;
 	static int cnt = 0;
+	unsigned long flags;
 fin();
 
 	pr_err("%s(): dev=%s\n", __func__, channel->dev->of_node->full_name);
 //dump_stack();
 
-	mutex_lock(&channel->lock);
+	spin_lock_irqsave(&channel->slock, flags);
 	if (!rcar_gen3_are_all_rphys_power_off(channel))
 		goto out;
 
@@ -704,7 +735,7 @@ out:
 	/* The powered flag should be set for any other phys anyway */
 	rphy->powered = true;
 unlock:
-	mutex_unlock(&channel->lock);
+	spin_unlock_irqrestore(&channel->slock, flags);
 
 fout(0);
 	return 0;
@@ -714,16 +745,23 @@ static int rcar_gen3_phy_usb2_power_off(struct phy *p)
 {
 	struct rcar_gen3_phy *rphy = phy_get_drvdata(p);
 	struct rcar_gen3_chan *channel = rphy->ch;
+	void __iomem *usb2_base = channel->base;
 	int ret = 0;
 	static int cnt = 0;
+	u32 val;
+	unsigned long flags;
 fin();
 
 	pr_err("%s(): dev=%s\n", __func__, channel->dev->of_node->full_name);
-	mutex_lock(&channel->lock);
+	spin_lock_irqsave(&channel->slock, flags);
 	rphy->powered = false;
 
 	if (!rcar_gen3_are_all_rphys_power_off(channel))
 		goto out;
+
+	val = readl(usb2_base + USB2_USBCTR);
+	val |= USB2_USBCTR_PLL_RST;
+	writel(val, usb2_base + USB2_USBCTR);
 
 	if (channel->vbus) {
 		pr_err("%s(): regulator dis %d\n", __func__, cnt++);
@@ -731,7 +769,7 @@ fin();
 		ret = regulator_disable(channel->vbus);
 	}
 out:
-	mutex_unlock(&channel->lock);
+	spin_unlock_irqrestore(&channel->slock, flags);
 
 fout(0);
 	return ret;
@@ -857,6 +895,7 @@ fout(1);
 	return candidate;
 }
 
+static struct reset_control *rsts;
 static int rcar_gen3_phy_usb2_probe(struct platform_device *pdev)
 {
 	const struct rcar_gen3_phy_drv_data *phy_data;
@@ -910,6 +949,13 @@ fout(4);
 		}
 	}
 
+	rsts = devm_reset_control_array_get_optional_shared(dev);
+	if (IS_ERR(rsts))
+		return PTR_ERR(rsts);
+
+	ret = reset_control_deassert(rsts);
+	if (ret)
+		return ret;
 	/*
 	 * devm_phy_create() will call pm_runtime_enable(&phy->dev);
 	 * And then, phy-core will manage runtime pm for this device.
@@ -931,6 +977,7 @@ fout(4);
 		channel->obint_enable_bits = USB2_OBINT_IDCHG_EN;
 
 	mutex_init(&channel->lock);
+	spin_lock_init(&channel->slock);
 	for (i = 0; i < NUM_OF_PHYS; i++) {
 		channel->rphys[i].phy = devm_phy_create(dev, NULL,
 							phy_data->phy_usb2_ops);
@@ -1010,6 +1057,7 @@ fin();
 
 	pm_runtime_put(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
+	reset_control_deassert(rsts);
 };
 
 static struct platform_driver rcar_gen3_phy_usb2_driver = {

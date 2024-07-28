@@ -1206,6 +1206,8 @@ static int rzg2l_mod_clock_endisable(struct clk_hw *hw, bool enable)
 	u32 value;
 	int error;
 
+	if (!strcmp(clk_hw_get_name(hw), "usb0_host"))
+		dump_stack();
 	if (!clock->off) {
 		dev_dbg(dev, "%pC does not support ON/OFF\n",  hw->clk);
 		return 0;
@@ -1711,7 +1713,7 @@ static int rzg2l_cpg_fw_usb_power_off(struct generic_pm_domain *domain)
 	struct rzg2l_cpg_reg_conf usb = pd->conf.usb;
 	struct arm_smccc_res res;
 
-	pr_err("%s(): out\n", __func__);
+	pr_err("%s(): out, mask=%d\n", __func__, usb.mask);
 
 	arm_smccc_smc(usb.cookie, usb.off, usb.mask, 0, 0, 0, 0, 0, &res);
 	if (res.a0 != usb.cookie) {

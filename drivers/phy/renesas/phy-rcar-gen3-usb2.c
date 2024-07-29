@@ -482,7 +482,6 @@ fin();
 	val = (val & ~USB2_LINECTRL1_DP_RPD) | USB2_LINECTRL1_DPRPD_EN |
 	      USB2_LINECTRL1_DMRPD_EN | USB2_LINECTRL1_DM_RPD;
 	writel(val, usb2_base + USB2_LINECTRL1);
-	readl(usb2_base + USB2_LINECTRL1);
 
 	if (!ch->soc_no_adp_ctrl) {
 		val = readl(usb2_base + USB2_VBCTRL);
@@ -491,19 +490,11 @@ fin();
 		val = readl(usb2_base + USB2_ADPCTRL);
 		writel(val | USB2_ADPCTRL_IDPULLUP, usb2_base + USB2_ADPCTRL);
 	}
-//	wmb();
-	pr_err("%s(): before sleep: dev=%s\n", __func__, ch->dev->of_node->full_name);
 	mdelay(20);
 
-	pr_err("%s(): after sleep: dev=%s\n", __func__, ch->dev->of_node->full_name);
-
-#if 0
 	val = readl(usb2_base + USB2_OBINTSTA);
-	val |= BIT(17) | BIT(16) | BIT(6) | BIT(4) | BIT(1) | BIT(0);
 	writel(val, usb2_base + USB2_OBINTSTA);
-#endif
 	writel(ch->obint_enable_bits, usb2_base + USB2_OBINTEN);
-	readl(usb2_base + USB2_OBINTEN);
 
 	rcar_gen3_device_recognition(ch);
 
@@ -567,10 +558,6 @@ fout(0);
 		val = readl(usb2_base + USB2_USBCTR);
 		val &= ~BIT(0);
 		writel(val, usb2_base + USB2_USBCTR);
-	
-		val = readl(usb2_base + USB2_OBINTSTA);
-		val |= BIT(17) | BIT(16) | BIT(6) | BIT(4) | BIT(1) | BIT(0);
-		writel(val, usb2_base + USB2_OBINTSTA);
 	}
 
 	/* Initialize USB2 part */

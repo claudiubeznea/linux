@@ -45,6 +45,7 @@
 /* USBCTR */
 #define USB2_USBCTR_DIRPD	BIT(2)
 #define USB2_USBCTR_PLL_RST	BIT(1)
+#define USB2_USBCTR_USBH_RST	BIT(0)
 
 /* SPD_RSM_TIMSET */
 #define USB2_SPD_RSM_TIMSET_INIT	0x014e029b
@@ -543,8 +544,7 @@ fin();
 
 	spin_lock_irqsave(&channel->lock, flags);
 
-	if (!rcar_gen3_is_any_rphy_initialized(channel)) {
-		if (channel->irq >= 0) {
+	if (!rcar_gen3_is_any_rphy_initialized(channel) && channel->irq >= 0) {
 		INIT_WORK(&channel->work, rcar_gen3_phy_usb2_work);
 		ret = request_irq(channel->irq, rcar_gen3_phy_usb2_irq,
 				  IRQF_SHARED, dev_name(channel->dev), channel);
@@ -553,11 +553,6 @@ fin();
 fout(0);
 			goto unlock;
 		}
-		}
-	
-		val = readl(usb2_base + USB2_USBCTR);
-		val &= ~BIT(0);
-		writel(val, usb2_base + USB2_USBCTR);
 	}
 
 	/* Initialize USB2 part */
@@ -612,11 +607,8 @@ fin();
 	writel(0, usb2_base + USB2_LINECTRL1);
 
 	if (!rcar_gen3_is_any_rphy_initialized(channel)) {
-	
 		val = readl(usb2_base + USB2_USBCTR);
-		val |= BIT(0);
-		writel(val, usb2_base + USB2_USBCTR);
-
+		writel(val | USB2_USBCTR_USBH_RST, usb2_base + USB2_USBCTR);
 		if (channel->irq >= 0)
 			free_irq(channel->irq, channel);
 	}

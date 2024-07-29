@@ -28,10 +28,9 @@ static const struct regulator_desc rzg2l_usb_vbus_rdesc = {
 	.owner = THIS_MODULE,
 	.enable_reg  = 0,
 	.enable_mask = BIT(0),
-	.enable_val = 0,
-	.disable_val = BIT(0),
-	.fixed_uV = 5000000,
-	.n_voltages = 1,
+	.enable_is_inverted = true,
+	.fixed_uV	= 5000000,
+	.n_voltages	= 1,
 };
 
 static int rzg2l_usb_vbus_regulator_probe(struct platform_device *pdev)

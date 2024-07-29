@@ -310,12 +310,6 @@ fout(2);
 	return !!(readl(ch->base + USB2_ADPCTRL) & USB2_ADPCTRL_IDDIG);
 }
 
-/* Need to protect with spin lock to avoid concurrency w/ IRQ context.
- * This may happen becuase this is called right after the interrupts
- * are enabled. Thus there is a chance that this to be interrupted
- * by an IRQ in the initial configuration process and then, re-executed.
- * In theory it should be harmless but do we want to experiment any
- * strange behavior? */
 static void rcar_gen3_device_recognition(struct rcar_gen3_chan *ch)
 {
 fin();

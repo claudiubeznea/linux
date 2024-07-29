@@ -2928,6 +2928,13 @@ static int ravb_probe(struct platform_device *pdev)
 		priv->num_rx_ring[RAVB_NC] = NC_RX_RING_SIZE;
 	}
 
+	platform_set_drvdata(pdev, ndev);
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 100);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	error = devm_pm_runtime_enable(&pdev->dev);
+	if (error)
+		goto out_reset_assert;
+
 	error = ravb_setup_irqs(priv);
 	if (error)
 		goto out_reset_assert;
@@ -2953,13 +2960,9 @@ static int ravb_probe(struct platform_device *pdev)
 	}
 	clk_prepare(priv->refclk);
 
-	platform_set_drvdata(pdev, ndev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev, 100);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 	error = pm_runtime_resume_and_get(&pdev->dev);
 	if (error < 0)
-		goto out_rpm_disable;
+		goto out_rpm_undo;
 
 	priv->addr = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(priv->addr)) {
@@ -3086,8 +3089,7 @@ out_reset_mode:
 			  priv->desc_bat_dma);
 out_rpm_put:
 	pm_runtime_put(&pdev->dev);
-out_rpm_disable:
-	pm_runtime_disable(&pdev->dev);
+out_rpm_undo:
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	clk_unprepare(priv->refclk);
 out_reset_assert:
@@ -3120,7 +3122,6 @@ static void ravb_remove(struct platform_device *pdev)
 			  priv->desc_bat_dma);
 
 	pm_runtime_put_sync_suspend(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
 	pm_runtime_dont_use_autosuspend(dev);
 	clk_unprepare(priv->refclk);
 	reset_control_assert(priv->rstc);

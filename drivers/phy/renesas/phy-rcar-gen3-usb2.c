@@ -121,7 +121,6 @@ struct rcar_gen3_chan {
 	bool is_otg_channel;
 	bool uses_otg_pins;
 	bool soc_no_adp_ctrl;
-	enum phy_mode role;
 };
 
 struct rcar_gen3_phy_drv_data {
@@ -319,10 +318,7 @@ fout(2);
  * strange behavior? */
 static void rcar_gen3_device_recognition(struct rcar_gen3_chan *ch)
 {
-	bool device;
-
 fin();
-
 	pr_err("%s(): dev=%s, LINECTR1=%08x, in IRQ=%d\n", __func__, ch->dev->of_node->full_name,
 			readl(ch->base + USB2_LINECTRL1), in_hardirq());
 
@@ -330,25 +326,6 @@ fin();
 		rcar_gen3_init_for_host(ch);
 	else
 		rcar_gen3_init_for_peri(ch);
-
-#if 0
-	/*
-	 * We are reconfiguring here after returning from resume and our
-	 * user is initializing us.
-	 */
-	if (pm_suspend_target_state != PM_SUSPEND_ON && !in_hardirq())
-		device = ch->role == PHY_MODE_USB_DEVICE;
-	else
-		device = rcar_gen3_check_id(ch);
-
-	if (device) {
-		rcar_gen3_init_for_peri(ch);
-		ch->role = PHY_MODE_USB_DEVICE;
-	} else {
-		rcar_gen3_init_for_host(ch);
-		ch->role = PHY_MODE_USB_HOST;
-	}
-#endif
 fout(0);
 }
 
@@ -441,9 +418,6 @@ fout(2);
 		rcar_gen3_init_for_a_peri(ch);
 	else			/* B-Host */
 		rcar_gen3_init_for_peri(ch);
-
-	ch->role = PHY_MODE_USB_DEVICE;
-
 }
 
 static ssize_t role_store(struct device *dev, struct device_attribute *attr,
@@ -496,7 +470,6 @@ fout(2);
 			rcar_gen3_init_for_peri(ch);
 	}
 
-	ch->role = new_mode;
 	spin_unlock_irqrestore(&ch->lock, flags);
 
 fout(3);

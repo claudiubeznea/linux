@@ -397,8 +397,7 @@ static ssize_t role_store(struct device *dev, struct device_attribute *attr,
 	unsigned long flags;
 fin();
 
-	if (!ch->is_otg_channel || ch->soc_no_adp_ctrl ||
-	    !rcar_gen3_is_any_otg_rphy_initialized(ch))
+	if (!ch->is_otg_channel || ch->soc_no_adp_ctrl)
 {
 fout(0);
 		return -EIO;
@@ -426,6 +425,12 @@ fout(2);
 }
 
 	spin_lock_irqsave(&ch->lock, flags);
+
+	if (!rcar_gen3_is_any_otg_rphy_initialized(ch)) {
+		count = -EINVAL;
+		goto unlock;
+	}
+
 	if (new_mode == PHY_MODE_USB_HOST) { /* And is_host must be false */
 		if (!is_b_device)	/* A-Peripheral */
 			rcar_gen3_init_from_a_peri_to_a_host(ch);
@@ -438,6 +443,7 @@ fout(2);
 			rcar_gen3_init_for_peri(ch);
 	}
 
+unlock:
 	spin_unlock_irqrestore(&ch->lock, flags);
 
 fout(3);

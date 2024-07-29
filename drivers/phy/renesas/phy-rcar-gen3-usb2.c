@@ -394,32 +394,6 @@ fout(1);
 	return true;
 }
 
-static void rcar_gen3_config_default(struct rcar_gen3_chan *ch)
-{
-//	struct rcar_gen3_chan *ch = dev_get_drvdata(dev);
-	bool is_b_device;
-	enum phy_mode cur_mode, new_mode;
-
-	if (!ch->is_otg_channel || !rcar_gen3_is_any_otg_rphy_initialized(ch))
-		return;
-
-	/* is_b_device: true is B-Device. false is A-Device. */
-	is_b_device = rcar_gen3_check_id(ch);
-	cur_mode = rcar_gen3_get_phy_mode(ch);
-
-	/* If current and new mode is the same, this returns the error */
-	if (cur_mode == PHY_MODE_USB_DEVICE)
-{
-fout(2);
-		return;
-}
-
-	if (!is_b_device)	/* A-Host */
-		rcar_gen3_init_for_a_peri(ch);
-	else			/* B-Host */
-		rcar_gen3_init_for_peri(ch);
-}
-
 static ssize_t role_store(struct device *dev, struct device_attribute *attr,
 			  const char *buf, size_t count)
 {
@@ -658,7 +632,6 @@ fin();
 
 		if (channel->irq >= 0)
 			free_irq(channel->irq, channel);
-		//rcar_gen3_config_default(channel);
 	}
 
 unlock:
@@ -994,8 +967,6 @@ fin();
 
 	if (channel->is_otg_channel)
 		device_remove_file(&pdev->dev, &dev_attr_role);
-
-//	rcar_gen3_config_default(&pdev->dev);
 
 	/*
 	 * Make sure we disable the regulator (in case it was enabled

@@ -72,7 +72,7 @@
 };
 
 &ehci1 {
-//	status = "okay";
+	status = "okay";
 };
 
 &hsusb {
@@ -86,7 +86,7 @@
 };
 
 &ohci1 {
-//	status = "okay";
+	status = "okay";
 };
 
 &pinctrl {
@@ -199,5 +199,5 @@
 &usb2_phy1 {
 	pinctrl-0 = <&usb1_pins>;
 	pinctrl-names = "default";
-//	status = "okay";
+	status = "okay";
 };

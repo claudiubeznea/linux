@@ -891,7 +891,6 @@ fout(1);
 	return candidate;
 }
 
-//static struct reset_control *rsts;
 static int rcar_gen3_phy_usb2_probe(struct platform_device *pdev)
 {
 	const struct rcar_gen3_phy_drv_data *phy_data;
@@ -945,15 +944,6 @@ fout(4);
 		}
 	}
 
-#if 0
-	rsts = devm_reset_control_array_get_optional_shared(dev);
-	if (IS_ERR(rsts))
-		return PTR_ERR(rsts);
-
-	ret = reset_control_deassert(rsts);
-	if (ret)
-		return ret;
-#endif
 	/*
 	 * devm_phy_create() will call pm_runtime_enable(&phy->dev);
 	 * And then, phy-core will manage runtime pm for this device.
@@ -986,26 +976,8 @@ fout(4);
 		channel->rphys[i].ch = channel;
 		channel->rphys[i].int_enable_bits = rcar_gen3_int_enable[i];
 		phy_set_drvdata(channel->rphys[i].phy, &channel->rphys[i]);
-#if 0
-	/* Consider using struct phy::pwr populated though phy-supply. */
-	if (channel->soc_no_adp_ctrl && channel->is_otg_channel)
-		channel->vbus = devm_regulator_get_exclusive(&channel->rphys[i].phy->dev, "vbus");
-	else
-		channel->vbus = devm_regulator_get_optional(&channel->rphys[i].phy->dev, "vbus");
-	if (IS_ERR(channel->vbus)) {
-		if (PTR_ERR(channel->vbus) == -EPROBE_DEFER) {
-			ret = PTR_ERR(channel->vbus);
-			goto error;
-		}
-		channel->vbus = NULL;
-	}
-#endif
 	}
 
-	/* Consider using struct phy::pwr populated though phy-supply. 
-	 * stack traces on regulator when unbinding devices from this
-	 * driver. First unbind attempts to unregister a used regulator.
-	 */
 	if (channel->soc_no_adp_ctrl && channel->is_otg_channel)
 		channel->vbus = devm_regulator_get_exclusive(dev, "vbus");
 	else
@@ -1061,7 +1033,6 @@ fin();
 
 	pm_runtime_put(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
-//	reset_control_deassert(rsts);
 };
 
 static struct platform_driver rcar_gen3_phy_usb2_driver = {

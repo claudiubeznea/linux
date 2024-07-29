@@ -505,21 +505,33 @@ fout(0);
 static irqreturn_t rcar_gen3_phy_usb2_irq(int irq, void *_ch)
 {
 	struct rcar_gen3_chan *ch = _ch;
+	struct device *dev = ch->dev;
 	void __iomem *usb2_base = ch->base;
-	u32 status = readl(usb2_base + USB2_OBINTSTA);
 	irqreturn_t ret = IRQ_NONE;
+	u32 status;
+
 fin();
+
+	pm_runtime_get_noresume(dev);
+
+	if (unlikely(!pm_runtime_active(dev)))
+		goto rpm_put;
 
 	spin_lock(&ch->lock);
 
+	status = readl(usb2_base + USB2_OBINTSTA);
 	if (status & ch->obint_enable_bits) {
-		dev_vdbg(ch->dev, "%s: %08x\n", __func__, status);
+		dev_vdbg(dev, "%s: %08x\n", __func__, status);
 		writel(ch->obint_enable_bits, usb2_base + USB2_OBINTSTA);
 		rcar_gen3_device_recognition(ch);
 		ret = IRQ_HANDLED;
 	}
 
 	spin_unlock(&ch->lock);
+
+rpm_put:
+	pm_runtime_put_noidle(dev);
+
 fout(0);
 	return ret;
 }
@@ -531,6 +543,7 @@ static int rcar_gen3_phy_usb2_init(struct phy *p)
 	struct rcar_gen3_phy *rphy = phy_get_drvdata(p);
 	struct rcar_gen3_chan *channel = rphy->ch;
 	void __iomem *usb2_base = channel->base;
+	bool core_initialized;
 	unsigned long flags;
 	u32 val;
 	int ret;
@@ -543,24 +556,14 @@ fin();
 //dump_stack();
 
 	spin_lock_irqsave(&channel->lock, flags);
-
-	if (!rcar_gen3_is_any_rphy_initialized(channel) && channel->irq >= 0) {
-		INIT_WORK(&channel->work, rcar_gen3_phy_usb2_work);
-		ret = request_irq(channel->irq, rcar_gen3_phy_usb2_irq,
-				  IRQF_SHARED, dev_name(channel->dev), channel);
-		if (ret < 0) {
-			dev_err(channel->dev, "No irq handler (%d)\n", channel->irq);
-fout(0);
-			goto unlock;
-		}
-	}
+	core_initialized = rcar_gen3_is_any_rphy_initialized(channel);
 
 	/* Initialize USB2 part */
 	val = readl(usb2_base + USB2_INT_ENABLE);
 	val |= USB2_INT_ENABLE_UCOM_INTEN | rphy->int_enable_bits;
 	writel(val, usb2_base + USB2_INT_ENABLE);
 
-	if (!rcar_gen3_is_any_rphy_initialized(channel)) {
+	if (!core_initialized) {
 		writel(USB2_SPD_RSM_TIMSET_INIT, usb2_base + USB2_SPD_RSM_TIMSET);
 		writel(USB2_OC_TIMSET_INIT, usb2_base + USB2_OC_TIMSET);
 	}
@@ -582,6 +585,7 @@ static int rcar_gen3_phy_usb2_exit(struct phy *p)
 	struct rcar_gen3_phy *rphy = phy_get_drvdata(p);
 	struct rcar_gen3_chan *channel = rphy->ch;
 	void __iomem *usb2_base = channel->base;
+	bool core_initialized;
 	u32 val;
 	unsigned long flags;
 fin();
@@ -591,10 +595,11 @@ fin();
 	spin_lock_irqsave(&channel->lock, flags);
 
 	rphy->initialized = false;
+	core_initialized = rcar_gen3_is_any_rphy_initialized(channel);
 
 	val = readl(usb2_base + USB2_INT_ENABLE);
 	val &= ~rphy->int_enable_bits;
-	if (rcar_gen3_is_any_rphy_initialized(channel)) {
+	if (core_initialized) {
 		writel(val, usb2_base + USB2_INT_ENABLE);
 		goto unlock;
 	}
@@ -606,11 +611,9 @@ fin();
 	writel(val, usb2_base + USB2_OBINTSTA);
 	writel(0, usb2_base + USB2_LINECTRL1);
 
-	if (!rcar_gen3_is_any_rphy_initialized(channel)) {
+	if (!core_initialized) {
 		val = readl(usb2_base + USB2_USBCTR);
 		writel(val | USB2_USBCTR_USBH_RST, usb2_base + USB2_USBCTR);
-		if (channel->irq >= 0)
-			free_irq(channel->irq, channel);
 	}
 
 unlock:
@@ -822,7 +825,7 @@ static int rcar_gen3_phy_usb2_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct rcar_gen3_chan *channel;
 	struct phy_provider *provider;
-	int ret = 0, i;
+	int ret = 0, i, irq;
 fin();
 
 	if (!dev->of_node) {
@@ -846,8 +849,6 @@ fout(2);
 }
 
 	channel->obint_enable_bits = USB2_OBINT_BITS;
-	/* get irq number here and request_irq for OTG in phy_init */
-	channel->irq = platform_get_irq_optional(pdev, 0);
 	channel->dr_mode = rcar_gen3_get_dr_mode(dev->of_node);
 	if (channel->dr_mode != USB_DR_MODE_UNKNOWN) {
 		channel->is_otg_channel = true;
@@ -873,12 +874,28 @@ fout(4);
 	 * devm_phy_create() will call pm_runtime_enable(&phy->dev);
 	 * And then, phy-core will manage runtime pm for this device.
 	 */
-	pm_runtime_enable(dev);
-	ret = pm_runtime_resume_and_get(dev);
+	ret = devm_pm_runtime_enable(dev);
 	if (ret)
 		return ret;
 
-	/* But ^^^...*/
+	channel->dev = dev;
+
+	/*
+	 * Request the interrupts after runtime PM is enabled. This allows
+	 * us to use pm_runtime_active() and detect if the shared interrupt
+	 * is for us or not.
+	 */
+	irq = platform_get_irq_optional(pdev, 0);
+	if (irq >= 0) {
+		INIT_WORK(&channel->work, rcar_gen3_phy_usb2_work);
+		ret = devm_request_irq(dev, irq, rcar_gen3_phy_usb2_irq,
+				       IRQF_SHARED, dev_name(dev), channel);
+		if (ret < 0) {
+			dev_err(dev, "No irq handler (%d)\n", channel->irq);
+			goto error;
+		}
+	}
+
 	phy_data = of_device_get_match_data(dev);
 	if (!phy_data) {
 		ret = -EINVAL;
@@ -916,7 +933,6 @@ fout(4);
 	}
 
 	platform_set_drvdata(pdev, channel);
-	channel->dev = dev;
 
 	provider = devm_of_phy_provider_register(dev, rcar_gen3_phy_usb2_xlate);
 	if (IS_ERR(provider)) {
@@ -942,10 +958,11 @@ fout(6);
 static void rcar_gen3_phy_usb2_remove(struct platform_device *pdev)
 {
 	struct rcar_gen3_chan *channel = platform_get_drvdata(pdev);
+	struct device *dev = &pdev->dev;
 fin();
 
 	if (channel->is_otg_channel)
-		device_remove_file(&pdev->dev, &dev_attr_role);
+		device_remove_file(dev, &dev_attr_role);
 
 	/*
 	 * Make sure we disable the regulator (in case it was enabled
@@ -953,10 +970,7 @@ fin();
 	 */
 	if (channel->soc_no_adp_ctrl && channel->vbus)
 		regulator_disable(channel->vbus);
-
-	pm_runtime_put(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
-};
+}
 
 static struct platform_driver rcar_gen3_phy_usb2_driver = {
 	.driver = {

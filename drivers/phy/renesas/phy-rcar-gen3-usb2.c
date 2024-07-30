@@ -825,6 +825,7 @@ static int rcar_gen3_phy_usb2_probe(struct platform_device *pdev)
 	struct rcar_gen3_chan *channel;
 	struct phy_provider *provider;
 	int ret = 0, i, irq;
+	u32 val;
 fin();
 
 	if (!dev->of_node) {
@@ -876,6 +877,16 @@ fout(4);
 	ret = devm_pm_runtime_enable(dev);
 	if (ret)
 		return ret;
+#if 0
+	ret = pm_runtime_resume_and_get(dev);
+	if (ret)
+		return ret;
+
+	/* Reset the module. It is necessary for Direct power down mode. */
+	val = readl(channel->base + USB2_USBCTR);
+	val |= USB2_USBCTR_PLL_RST;
+	writel(val, channel->base + USB2_USBCTR);
+#endif
 
 	channel->dev = dev;
 
@@ -948,6 +959,7 @@ fout(5);
 	return 0;
 
 error:
+//	pm_runtime_put(dev);
 	pm_runtime_disable(dev);
 
 fout(6);

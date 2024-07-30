@@ -17,6 +17,7 @@
 #include <linux/reset-controller.h>
 
 #define RESET			0x000
+//#define UDIRPD			0x01c
 #define VBENCTL			0x03c
 
 #define RESET_SEL_PLLRESET	BIT(12)
@@ -29,6 +30,9 @@
 
 #define PHY_RESET_PORT2		(RESET_SEL_P2RESET | RESET_PHYRST_2)
 #define PHY_RESET_PORT1		(RESET_SEL_P1RESET | RESET_PHYRST_1)
+
+//#define UDIRPD_SEL_UDIRPD	BIT(4)
+//#define UDIRPD_DIRPD		BIT(0)
 
 #define NUM_PORTS		2
 
@@ -59,6 +63,13 @@ fin();
 	if (port_mask == (val & port_mask))
 		val |= RESET_PLLRESET;
 	writel(val, base + RESET);
+#if 0
+	if (0 && port_mask == (val & port_mask)) {
+		writel(UDIRPD_SEL_UDIRPD, base + UDIRPD);
+		wmb();
+		writel(UDIRPD_DIRPD, base + UDIRPD);
+	}
+#endif
 	spin_unlock_irqrestore(&priv->lock, flags);
 
 fout(0);
@@ -75,8 +86,20 @@ static int rzg2l_usbphy_ctrl_deassert(struct reset_controller_dev *rcdev,
 fin();
 
 	spin_lock_irqsave(&priv->lock, flags);
-	val = readl(base + RESET);
 
+#if 0
+	/* Negate the direct power down signal. */
+	writel(UDIRPD_SEL_UDIRPD, base + UDIRPD);
+	wmb();
+	writel(0, base + UDIRPD);
+	/*
+	 * According to RZ/G3S HW manual, section 32.4.3.2 Resume from Direct
+	 * power down mode, we need to wait 1us or more to after DPD signal
+	 * is negated.
+	 */
+	udelay(5);
+#endif
+	val = readl(base + RESET);
 	val |= RESET_SEL_PLLRESET;
 	val &= ~(RESET_PLLRESET | (id ? PHY_RESET_PORT2 : PHY_RESET_PORT1));
 	writel(val, base + RESET);
@@ -111,7 +134,9 @@ fin();
 	val |= RESET_SEL_PLLRESET | RESET_PLLRESET | PHY_RESET_PORT2 | PHY_RESET_PORT1;
 	writel(val, priv->base + RESET);
 
-	//mdelay(1000);
+	/* Move to direct power down mode. */
+//	writel(UDIRPD_SEL_UDIRPD | UDIRPD_DIRPD, priv->base + UDIRPD);
+
 	spin_unlock_irqrestore(&priv->lock, flags);
 fout(0);
 }

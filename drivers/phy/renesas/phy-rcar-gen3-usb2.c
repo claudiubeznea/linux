@@ -606,15 +606,14 @@ fin();
 
 	val &= ~USB2_INT_ENABLE_UCOM_INTEN;
 	writel(val, usb2_base + USB2_INT_ENABLE);
+
+	/*
+	 * Disable and clear PHY interrupts to avoid firing any
+	 * unwanted IRQs (while configuring).
+	 */
 	writel(0, usb2_base + USB2_OBINTEN);
 	val = readl(usb2_base + USB2_OBINTSTA);
 	writel(val, usb2_base + USB2_OBINTSTA);
-	writel(0, usb2_base + USB2_LINECTRL1);
-
-	if (!core_initialized) {
-		val = readl(usb2_base + USB2_USBCTR);
-		writel(val | USB2_USBCTR_USBH_RST, usb2_base + USB2_USBCTR);
-	}
 
 unlock:
 	spin_unlock_irqrestore(&channel->lock, flags);

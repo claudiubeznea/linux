@@ -1397,7 +1397,7 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 
 	if (usb_endpoint_xfer_control(&urb->ep->desc)) {
 		if (hcd->self.uses_pio_for_control) {
-			pr_err("%s(): pio\n", __func__);
+	//		pr_err("%s(): pio\n", __func__);
 			return ret;
 		}
 		if (hcd->localmem_pool) {
@@ -1411,7 +1411,7 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 				return ret;
 			urb->transfer_flags |= URB_SETUP_MAP_LOCAL;
 		} else if (hcd_uses_dma(hcd)) {
-			pr_err("%s(): DMA\n", __func__);
+//			pr_err("%s(): DMA\n", __func__);
 			if (object_is_on_stack(urb->setup_packet)) {
 				WARN_ONCE(1, "setup packet is on stack\n");
 				return -EAGAIN;
@@ -1426,7 +1426,7 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 						urb->setup_dma))
 				return -EAGAIN;
 
-			pr_err("%s(): urb->setup_packet=%x\n", __func__, urb->setup_packet);
+//			pr_err("%s(): urb->setup_packet=%x\n", __func__, urb->setup_packet);
 			urb->transfer_flags |= URB_SETUP_MAP_SINGLE;
 		}
 	}
@@ -1493,7 +1493,7 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 					ret = -EAGAIN;
 				else
 					urb->transfer_flags |= URB_DMA_MAP_SINGLE;
-				pr_err("%s(): transfer_buffer=%x\n", __func__, urb->transfer_buffer);
+//				pr_err("%s(): transfer_buffer=%x\n", __func__, urb->transfer_buffer);
 			}
 		}
 		if (ret && (urb->transfer_flags & (URB_SETUP_MAP_SINGLE |

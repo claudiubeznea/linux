@@ -28,6 +28,8 @@
 /******* USB2.0 Host registers (original offset is +0x200) *******/
 #define USB2_INT_ENABLE		0x000
 #define USB2_USBCTR		0x00c
+#define USB2_REGEN_CG_CTRL	0x104
+#define USB2_SPD_CTRL		0x108
 #define USB2_SPD_RSM_TIMSET	0x10c
 #define USB2_OC_TIMSET		0x110
 #define USB2_COMMCTRL		0x600
@@ -47,11 +49,23 @@
 #define USB2_USBCTR_PLL_RST	BIT(1)
 #define USB2_USBCTR_USBH_RST	BIT(0)
 
+/* REGEN_CG_CTRL */
+#define USB2_REGEN_CG_CTRL_NONUSE	BIT(31)
+#define USB2_REGEN_CG_CTRL_HOST		BIT(29)
+#define USB2_REGEN_CG_CTRL_PERI		BIT(28)
+#define USB2_REGEN_CG_CTRL_BOTH		(USB2_REGEN_CG_CTRL_HOST | \
+					 USB2_REGEN_CG_CTRL_PERI)
+
+/* SPD_CTRL */
+#define USB2_SPD_CTRL_SUSPENDM_ENABLE	BIT(31)
+#define USB2_SPD_CTRL_SLEEP_ENABLE	BIT(30)
+#define USB2_SPD_CTRL_WKCNNT_ENABLE	BIT(23)
+
 /* SPD_RSM_TIMSET */
-#define USB2_SPD_RSM_TIMSET_INIT	0x014e029b
+#define USB2_SPD_RSM_TIMSET_INIT	0x01f403e8
 
 /* OC_TIMSET */
-#define USB2_OC_TIMSET_INIT		0x000209ab
+#define USB2_OC_TIMSET_INIT		0x0c830d40
 
 /* COMMCTRL */
 #define USB2_COMMCTRL_OTG_PERI		BIT(31)	/* 1 = Peripheral mode */
@@ -156,18 +170,37 @@ fin();
 fout(0);
 }
 
+static void rcar_gen3_gate_unused_clk(void __iomem *base, u32 unused)
+{
+	u32 val;
+
+return;
+
+	/* Enable automatic gating of unused controllers. */
+	val = readl(base + USB2_REGEN_CG_CTRL);
+	val &= ~(USB2_REGEN_CG_CTRL_NONUSE |
+		 USB2_REGEN_CG_CTRL_BOTH);
+	val |= unused;
+	writel(val, base + USB2_REGEN_CG_CTRL);
+}
+
 static void rcar_gen3_set_host_mode(struct rcar_gen3_chan *ch, int host)
 {
 	void __iomem *usb2_base = ch->base;
 	u32 val = readl(usb2_base + USB2_COMMCTRL);
+	u32 unused;
 fin();
 
 	pr_err("%s: %08x, %d\n", __func__, val, host);
-	if (host)
+	if (host) {
 		val &= ~USB2_COMMCTRL_OTG_PERI;
-	else
+		unused = USB2_REGEN_CG_CTRL_PERI;
+	} else {
 		val |= USB2_COMMCTRL_OTG_PERI;
+		unused = USB2_REGEN_CG_CTRL_HOST;
+	}
 	writel(val, usb2_base + USB2_COMMCTRL);
+	rcar_gen3_gate_unused_clk(ch->base, unused);
 fout(0);
 }
 
@@ -316,6 +349,8 @@ static void rcar_gen3_device_recognition(struct rcar_gen3_chan *ch)
 fin();
 	pr_err("%s(): dev=%s, LINECTR1=%08x, in IRQ=%d\n", __func__, ch->dev->of_node->full_name,
 			readl(ch->base + USB2_LINECTRL1), in_hardirq());
+
+	rcar_gen3_gate_unused_clk(ch->base, 0);
 
 	if (!rcar_gen3_check_id(ch))
 		rcar_gen3_init_for_host(ch);
@@ -557,6 +592,8 @@ fin();
 
 	spin_lock_irqsave(&channel->lock, flags);
 	core_initialized = rcar_gen3_is_any_rphy_initialized(channel);
+	if (!core_initialized)
+		rcar_gen3_gate_unused_clk(channel->base, 0);
 
 	/* Initialize USB2 part */
 	val = readl(usb2_base + USB2_INT_ENABLE);
@@ -566,6 +603,10 @@ fin();
 	if (!core_initialized) {
 		writel(USB2_SPD_RSM_TIMSET_INIT, usb2_base + USB2_SPD_RSM_TIMSET);
 		writel(USB2_OC_TIMSET_INIT, usb2_base + USB2_OC_TIMSET);
+
+//		val = readl(usb2_base + USB2_SPD_CTRL);
+//		val |= USB2_SPD_CTRL_SUSPENDM_ENABLE | USB2_SPD_CTRL_SLEEP_ENABLE;
+//		writel(val, usb2_base + USB2_SPD_CTRL);
 	}
 
 	/* Initialize otg part (only if we initialize a PHY with IRQs). */
@@ -615,6 +656,8 @@ fin();
 	val = readl(usb2_base + USB2_OBINTSTA);
 	writel(val, usb2_base + USB2_OBINTSTA);
 
+	rcar_gen3_gate_unused_clk(channel->base, USB2_REGEN_CG_CTRL_BOTH);
+
 unlock:
 	spin_unlock_irqrestore(&channel->lock, flags);
 
@@ -652,6 +695,9 @@ fin();
 	writel(val, usb2_base + USB2_USBCTR);
 	val &= ~USB2_USBCTR_PLL_RST;
 	writel(val, usb2_base + USB2_USBCTR);
+
+	pr_err("%s(): wrote %x to SPD_CTRL\n", __func__, val);
+
 
 out:
 	/* The powered flag should be set for any other phys anyway */

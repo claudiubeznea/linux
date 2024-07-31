@@ -44,6 +44,7 @@ static int usbhs_rza2_power_ctrl(struct platform_device *pdev,
 	if (!priv->phy)
 		return -ENODEV;
 
+	pr_err("%s(): 1, enable=%d\n", __func__, enable);
 	if (enable) {
 		// seteaza aici AHB_BUS_CTR
 		retval = phy_init(priv->phy);

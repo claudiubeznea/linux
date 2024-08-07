@@ -1261,8 +1261,10 @@ static int rzg2l_pinctrl_pinconf_get(struct pinctrl_dev *pctldev,
 		break;
 
 	case PIN_CONFIG_OUTPUT_ENABLE:
-		if (!pctrl->data->oen_read || !(cfg & PIN_CFG_OEN))
-			return -EOPNOTSUPP;
+		if (!(cfg & PIN_CFG_OEN))
+			return -EINVAL;
+		if (!pctrl->data->oen_read)
+			return -ENOTSUPP;
 		arg = pctrl->data->oen_read(pctrl, _pin);
 		if (!arg)
 			return -EINVAL;
@@ -1402,7 +1404,9 @@ static int rzg2l_pinctrl_pinconf_set(struct pinctrl_dev *pctldev,
 
 		case PIN_CONFIG_OUTPUT_ENABLE:
 			arg = pinconf_to_config_argument(_configs[i]);
-			if (!pctrl->data->oen_write || !(cfg & PIN_CFG_OEN))
+			if (!(cfg & PIN_CFG_OEN))
+				return -EINVAL;
+			if (!pctrl->data->oen_write)
 				return -EOPNOTSUPP;
 			ret = pctrl->data->oen_write(pctrl, _pin, !!arg);
 			if (ret)

@@ -1135,7 +1135,7 @@ static irqreturn_t ravb_emac_interrupt(int irq, void *dev_id)
 
 	pm_runtime_get_noresume(dev);
 
-	if (unlikely(!pm_runtime_active(dev))) {
+	if (unlikely(pm_runtime_suspended(dev))) {
 		result = IRQ_NONE;
 		goto out_rpm_put;
 	}
@@ -1232,7 +1232,7 @@ static irqreturn_t ravb_interrupt(int irq, void *dev_id)
 
 	pm_runtime_get_noresume(dev);
 
-	if (unlikely(!pm_runtime_active(dev)))
+	if (unlikely(pm_runtime_suspended(dev)))
 		goto out_rpm_put;
 
 	spin_lock(&priv->lock);
@@ -1295,7 +1295,7 @@ static irqreturn_t ravb_multi_interrupt(int irq, void *dev_id)
 
 	pm_runtime_get_noresume(dev);
 
-	if (unlikely(!pm_runtime_active(dev)))
+	if (unlikely(pm_runtime_suspended(dev)))
 		goto out_rpm_put;
 
 	spin_lock(&priv->lock);
@@ -1334,7 +1334,7 @@ static irqreturn_t ravb_dma_interrupt(int irq, void *dev_id, int q)
 
 	pm_runtime_get_noresume(dev);
 
-	if (unlikely(!pm_runtime_active(dev)))
+	if (unlikely(pm_runtime_suspended(dev)))
 		goto out_rpm_put;
 
 	spin_lock(&priv->lock);
@@ -2260,7 +2260,7 @@ static struct net_device_stats *ravb_get_stats(struct net_device *ndev)
 
 	pm_runtime_get_noresume(dev);
 
-	if (!pm_runtime_active(dev))
+	if (pm_runtime_suspended(dev))
 		goto out_rpm_put;
 
 	stats0 = &priv->stats[RAVB_BE];
@@ -2584,10 +2584,10 @@ static int ravb_set_features(struct net_device *ndev,
 
 	pm_runtime_get_noresume(dev);
 
-	if (pm_runtime_active(dev))
-		ret = info->set_feature(ndev, features);
-	else
+	if (pm_runtime_suspended(dev))
 		ret = 0;
+	else
+		ret = info->set_feature(ndev, features);
 
 	pm_runtime_put_noidle(dev);
 
@@ -2949,38 +2949,41 @@ static int ravb_probe(struct platform_device *pdev)
 		priv->num_rx_ring[RAVB_NC] = NC_RX_RING_SIZE;
 	}
 
+	platform_set_drvdata(pdev, ndev);
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 100);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	error = devm_pm_runtime_enable(&pdev->dev);
+	if (error)
+		goto out_rpm_dis_auto;
+
 	error = ravb_setup_irqs(priv);
 	if (error)
-		goto out_reset_assert;
+		goto out_rpm_dis_auto;
 
 	priv->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(priv->clk)) {
 		error = PTR_ERR(priv->clk);
-		goto out_reset_assert;
+		goto out_rpm_dis_auto;
 	}
 
 	if (info->gptp_ref_clk) {
 		priv->gptp_clk = devm_clk_get(&pdev->dev, "gptp");
 		if (IS_ERR(priv->gptp_clk)) {
 			error = PTR_ERR(priv->gptp_clk);
-			goto out_reset_assert;
+			goto out_rpm_dis_auto;
 		}
 	}
 
 	priv->refclk = devm_clk_get_optional(&pdev->dev, "refclk");
 	if (IS_ERR(priv->refclk)) {
 		error = PTR_ERR(priv->refclk);
-		goto out_reset_assert;
+		goto out_rpm_dis_auto;
 	}
 	clk_prepare(priv->refclk);
 
-	platform_set_drvdata(pdev, ndev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev, 100);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 	error = pm_runtime_resume_and_get(&pdev->dev);
 	if (error < 0)
-		goto out_rpm_disable;
+		goto out_refclk_unprepare;
 
 	priv->addr = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(priv->addr)) {
@@ -3107,11 +3110,10 @@ out_reset_mode:
 			  priv->desc_bat_dma);
 out_rpm_put:
 	pm_runtime_put(&pdev->dev);
-out_rpm_disable:
-	pm_runtime_disable(&pdev->dev);
-	pm_runtime_dont_use_autosuspend(&pdev->dev);
+out_refclk_unprepare:
 	clk_unprepare(priv->refclk);
-out_reset_assert:
+out_rpm_dis_auto:
+	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	reset_control_assert(rstc);
 out_free_netdev:
 	free_netdev(ndev);
@@ -3141,7 +3143,6 @@ static void ravb_remove(struct platform_device *pdev)
 			  priv->desc_bat_dma);
 
 	pm_runtime_put_sync_suspend(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
 	pm_runtime_dont_use_autosuspend(dev);
 	clk_unprepare(priv->refclk);
 	reset_control_assert(priv->rstc);

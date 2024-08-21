@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
@@ -35,8 +36,13 @@ struct rzg2l_usbphy_ctrl_priv {
 	struct reset_control *rstc;
 	void __iomem *base;
 	struct platform_device *vdev;
+	struct device *cpg_genpd_dev;
+	struct device *sysc_genpd_dev;
+	struct device_link *cpg_genpd_dl;
+	struct device_link *sysc_genpd_dl;
 
 	spinlock_t lock;
+	bool set_power;
 };
 
 #define rcdev_to_priv(x)	container_of(x, struct rzg2l_usbphy_ctrl_priv, rcdev)
@@ -117,6 +123,7 @@ static int rzg2l_usbphy_ctrl_probe(struct platform_device *pdev)
 	struct platform_device *vdev;
 	struct regmap *regmap;
 	unsigned long flags;
+	const bool *match;
 	int error;
 	u32 val;
 
@@ -137,6 +144,10 @@ static int rzg2l_usbphy_ctrl_probe(struct platform_device *pdev)
 		return dev_err_probe(dev, PTR_ERR(priv->rstc),
 				     "failed to get reset\n");
 
+	match = device_get_match_data(dev);
+	if (match)
+		priv->set_power = (bool)match;
+
 	error = reset_control_deassert(priv->rstc);
 	if (error)
 		return error;
@@ -149,6 +160,51 @@ static int rzg2l_usbphy_ctrl_probe(struct platform_device *pdev)
 	if (error < 0) {
 		dev_err_probe(&pdev->dev, error, "pm_runtime_resume_and_get failed");
 		goto err_pm_disable_reset_deassert;
+	}
+
+	if (priv->set_power) {
+		priv->cpg_genpd_dev = dev_pm_domain_attach_by_name(dev, "cpg");
+		if (IS_ERR(priv->cpg_genpd_dev)) {
+			dev_err_probe(dev, error, "Failed to attach CPG PM domain!");
+			error = PTR_ERR(priv->cpg_genpd_dev);
+			goto err_pm_runtime_put;
+		}
+
+		priv->sysc_genpd_dev = dev_pm_domain_attach_by_name(dev, "sysc");
+		if (IS_ERR(priv->sysc_genpd_dev)) {
+			dev_err_probe(dev, error, "Failed to attach sysc PM domain!");
+			error = PTR_ERR(priv->sysc_genpd_dev);
+			goto err_genpd_cpg_detach;
+		}
+
+		priv->cpg_genpd_dl = device_link_add(dev, priv->cpg_genpd_dev,
+						     DL_FLAG_PM_RUNTIME |
+						     DL_FLAG_STATELESS);
+		if (!priv->cpg_genpd_dl) {
+			dev_err_probe(dev, -ENOMEM, "Failed to add CPG genpd device link!");
+			goto err_genpd_sysc_detach;
+		}
+
+		priv->sysc_genpd_dl = device_link_add(dev, priv->sysc_genpd_dev,
+						      DL_FLAG_PM_RUNTIME |
+						      DL_FLAG_STATELESS);
+		if (!priv->sysc_genpd_dl) {
+			dev_err_probe(dev, -ENOMEM, "Failed to add sysc genpd device link!");
+			goto err_genpd_cpg_dl_del;
+		}
+
+
+		error = pm_runtime_resume_and_get(priv->cpg_genpd_dev);
+		if (error) {
+			dev_err_probe(dev, error, "Failed to runtime resume cpg PM domain!");
+			goto err_genpd_sysc_dl_del;
+		}
+
+		error = pm_runtime_resume_and_get(priv->sysc_genpd_dev);
+		if (error) {
+			dev_err_probe(dev, error, "Failed to runtime resume sysc PM domain!");
+			goto err_genpd_cpg_off;
+		}
 	}
 
 	/* put pll and phy into reset state */
@@ -166,12 +222,12 @@ static int rzg2l_usbphy_ctrl_probe(struct platform_device *pdev)
 
 	error = devm_reset_controller_register(dev, &priv->rcdev);
 	if (error)
-		goto err_pm_runtime_put;
+		goto err_genpd_sysc_off;
 
 	vdev = platform_device_alloc("rzg2l-usb-vbus-regulator", pdev->id);
 	if (!vdev) {
 		error = -ENOMEM;
-		goto err_pm_runtime_put;
+		goto err_genpd_sysc_off;
 	}
 	vdev->dev.parent = dev;
 	priv->vdev = vdev;
@@ -184,6 +240,24 @@ static int rzg2l_usbphy_ctrl_probe(struct platform_device *pdev)
 
 err_device_put:
 	platform_device_put(vdev);
+err_genpd_sysc_off:
+	if (!IS_ERR_OR_NULL(priv->sysc_genpd_dev))
+		pm_runtime_put(priv->sysc_genpd_dev);
+err_genpd_cpg_off:
+	if (!IS_ERR_OR_NULL(priv->cpg_genpd_dev))
+		pm_runtime_put(priv->cpg_genpd_dev);
+err_genpd_sysc_dl_del:
+	if (priv->sysc_genpd_dl)
+		device_link_del(priv->sysc_genpd_dl);
+err_genpd_cpg_dl_del:
+	if (priv->cpg_genpd_dl)
+		device_link_del(priv->cpg_genpd_dl);
+err_genpd_sysc_detach:
+	if (!IS_ERR_OR_NULL(priv->sysc_genpd_dev))
+		dev_pm_domain_detach(priv->sysc_genpd_dev, true);
+err_genpd_cpg_detach:
+	if (!IS_ERR_OR_NULL(priv->cpg_genpd_dev))
+		dev_pm_domain_detach(priv->cpg_genpd_dev, true);
 err_pm_runtime_put:
 	pm_runtime_put(&pdev->dev);
 err_pm_disable_reset_deassert:
@@ -197,6 +271,20 @@ static void rzg2l_usbphy_ctrl_remove(struct platform_device *pdev)
 	struct rzg2l_usbphy_ctrl_priv *priv = dev_get_drvdata(&pdev->dev);
 
 	platform_device_unregister(priv->vdev);
+	if (!IS_ERR_OR_NULL(priv->sysc_genpd_dev)) {
+		pm_runtime_put(priv->sysc_genpd_dev);
+		if (priv->sysc_genpd_dl)
+			device_link_del(priv->sysc_genpd_dl);
+		dev_pm_domain_detach(priv->sysc_genpd_dev, true);
+	}
+
+	if (!IS_ERR_OR_NULL(priv->cpg_genpd_dev)) {
+		pm_runtime_put(priv->cpg_genpd_dev);
+		if (priv->cpg_genpd_dl)
+			device_link_del(priv->cpg_genpd_dl);
+		dev_pm_domain_detach(priv->cpg_genpd_dev, true);
+	}
+
 	pm_runtime_put(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 	reset_control_assert(priv->rstc);

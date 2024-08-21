@@ -30,6 +30,7 @@
 #define PHY_RESET_PORT1		(RESET_SEL_P1RESET | RESET_PHYRST_1)
 
 #define NUM_PORTS		2
+#define RZG3S_SET_POWER		1
 
 struct rzg2l_usbphy_ctrl_priv {
 	struct reset_controller_dev rcdev;
@@ -99,6 +100,10 @@ static int rzg2l_usbphy_ctrl_status(struct reset_controller_dev *rcdev,
 
 static const struct of_device_id rzg2l_usbphy_ctrl_match_table[] = {
 	{ .compatible = "renesas,rzg2l-usbphy-ctrl" },
+	{
+		.compatible = "renesas,r9a08g045-usbphy-ctrl",
+		.data = (void *)RZG3S_SET_POWER,
+	},
 	{ /* Sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, rzg2l_usbphy_ctrl_match_table);

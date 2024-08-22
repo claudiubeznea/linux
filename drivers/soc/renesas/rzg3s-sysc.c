@@ -6,9 +6,15 @@
  */
 
 #include <linux/auxiliary_bus.h>
+#include <linux/io.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/sys_soc.h>
 
 #include <linux/soc/renesas/rzg3s-sysc-pmdomain.h>
+
+#define RZG3S_SYS_LSI_DEVID		0xa04
+#define RZG3S_SYS_LSI_DEVID_REV		GENMASK(31, 28)
 
 /**
  * struct rzg3s_sysc - SYSC private data structure
@@ -71,10 +77,20 @@ static int rzg3s_sysc_pmdomain_probe(struct rzg3s_sysc *sysc, const char *adev_n
 	return devm_add_action_or_reset(sysc->dev, rzg3s_sysc_pmdomain_unregister_adev, adev);
 }
 
+static const struct of_device_id renesas_socs[] __initconst __maybe_unused = {
+	{ .compatible = "renesas,r9a08g045" },
+	{ }
+};
+
 static int rzg3s_sysc_probe(struct platform_device *pdev)
 {
+	struct soc_device_attribute *soc_dev_attr;
+	const struct of_device_id *match;
 	struct device *dev = &pdev->dev;
+	struct soc_device *soc_dev;
 	struct rzg3s_sysc *sysc;
+	u32 devid, revision;
+	const char *soc_id;
 
 	sysc = devm_kzalloc(dev, sizeof(*sysc), GFP_KERNEL);
 	if (!sysc)
@@ -86,6 +102,34 @@ static int rzg3s_sysc_probe(struct platform_device *pdev)
 
 	sysc->dev = dev;
 	spin_lock_init(&sysc->lock);
+	
+	match = of_match_node(renesas_socs, of_root);
+	if (!match)
+		return -ENODEV;
+
+	soc_id = strchr(match->compatible, ',') + 1;
+
+	soc_dev_attr = devm_kzalloc(dev, sizeof(*soc_dev_attr), GFP_KERNEL);
+	if (!soc_dev_attr)
+		return -ENOMEM;
+
+	soc_dev_attr->family = "RZ/G3S";
+	soc_dev_attr->soc_id = devm_kstrdup_const(dev, soc_id, GFP_KERNEL);
+	if (!soc_dev_attr->soc_id)
+		return -ENOMEM;
+
+	devid = readl(sysc->base + RZG3S_SYS_LSI_DEVID);
+	revision = FIELD_GET(RZG3S_SYS_LSI_DEVID_REV, devid);
+	soc_dev_attr->revision = devm_kasprintf(dev, GFP_KERNEL, "%u", revision);
+	if (!soc_dev_attr->revision)
+		return -ENOMEM;
+
+	pr_info("Detected Renesas %s %s Rev %s\n", soc_dev_attr->family,
+		soc_dev_attr->soc_id, soc_dev_attr->revision);
+
+	soc_dev = soc_device_register(soc_dev_attr);
+	if (IS_ERR(soc_dev))
+		return PTR_ERR(soc_dev);
 
 	return rzg3s_sysc_pmdomain_probe(sysc, "pmdomain", 0);
 }

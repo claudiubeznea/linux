@@ -1,0 +1,9 @@
+/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
+
+#ifndef __DT_BINDINGS_PMDOMAIN_R9A08G045_SYSC_H
+#define __DT_BINDINGS_PMDOMAIN_R9A08G045_SYSC_H
+
+#define R9A08G045_SYSC_PD_USB		1
+#define R9A08G045_SYSC_PD_PCI		2
+
+#endif /* __DT_BINDINGS_RESET_SAMA7G5_H */

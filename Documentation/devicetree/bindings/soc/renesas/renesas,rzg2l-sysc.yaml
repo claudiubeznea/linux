@@ -42,11 +42,27 @@ properties:
       - const: cm33stbyr_int
       - const: ca55_deny
 
+  '#power-domain-cells':
+    const: 1
+
 required:
   - compatible
   - reg
 
 additionalProperties: false
+
+allOf:
+  - if:
+      properties:
+        compatible:
+          contains:
+            const: renesas,r9a08g045-sysc
+    then:
+      required:
+        - '#power-domain-cells'
+    else:
+      properties:
+        '#power-domain-cells': false
 
 examples:
   - |

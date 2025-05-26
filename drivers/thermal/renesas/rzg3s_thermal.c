@@ -181,7 +181,7 @@ static int rzg3s_thermal_read_calib(struct rzg3s_thermal_priv *priv)
 	return 0;
 }
 
-static int rzg3s_thermal_probe_helper(struct platform_device *pdev, void *devres_group_id)
+static int rzg3s_thermal_probe_helper(struct platform_device *pdev)
 {
 	struct rzg3s_thermal_priv *priv;
 	struct device *dev = &pdev->dev;
@@ -190,8 +190,6 @@ static int rzg3s_thermal_probe_helper(struct platform_device *pdev, void *devres
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
-
-	priv->devres_group_id = devres_group_id;
 
 	priv->base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(priv->base))
@@ -233,7 +231,6 @@ static int rzg3s_thermal_probe_helper(struct platform_device *pdev, void *devres
 static int rzg3s_thermal_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	void *devres_group_id;
 	int ret;
 
 	/*
@@ -245,22 +242,9 @@ static int rzg3s_thermal_probe(struct platform_device *pdev)
 	 * rzg3s_thermal_change_mode()) without its clocks being enabled
 	 * and its PM domain being turned on.
 	 */
-	devres_group_id = devres_open_group(dev, NULL, GFP_KERNEL);
-	if (!devres_group_id)
-		return -ENOMEM;
-
-	ret = rzg3s_thermal_probe_helper(pdev, devres_group_id);
-	if (ret)
-		devres_release_group(dev, devres_group_id);
+	ret = rzg3s_thermal_probe_helper(pdev);
 
 	return ret;
-}
-
-static void rzg3s_thermal_remove(struct platform_device *pdev)
-{
-	struct rzg3s_thermal_priv *priv = dev_get_drvdata(&pdev->dev);
-
-	devres_release_group(priv->dev, priv->devres_group_id);
 }
 
 static int rzg3s_thermal_suspend(struct device *dev)
@@ -304,7 +288,6 @@ static struct platform_driver rzg3s_thermal_driver = {
 		.pm = pm_ptr(&rzg3s_thermal_pm_ops),
 	},
 	.probe = rzg3s_thermal_probe,
-	.remove = rzg3s_thermal_remove,
 };
 module_platform_driver(rzg3s_thermal_driver);
 

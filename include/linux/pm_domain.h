@@ -509,6 +509,7 @@ struct device *dev_pm_domain_attach_by_name(struct device *dev,
 int dev_pm_domain_attach_list(struct device *dev,
 			      const struct dev_pm_domain_attach_data *data,
 			      struct dev_pm_domain_list **list);
+int devm_pm_domain_attach(struct device *dev, bool power_on);
 int devm_pm_domain_attach_list(struct device *dev,
 			       const struct dev_pm_domain_attach_data *data,
 			       struct dev_pm_domain_list **list);
@@ -535,6 +536,11 @@ static inline struct device *dev_pm_domain_attach_by_name(struct device *dev,
 static inline int dev_pm_domain_attach_list(struct device *dev,
 				const struct dev_pm_domain_attach_data *data,
 				struct dev_pm_domain_list **list)
+{
+	return 0;
+}
+
+static inline int devm_pm_domain_attach(struct device *dev, bool power_on)
 {
 	return 0;
 }

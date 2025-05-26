@@ -116,6 +116,56 @@ int dev_pm_domain_attach(struct device *dev, bool power_on)
 EXPORT_SYMBOL_GPL(dev_pm_domain_attach);
 
 /**
+ * devm_pm_domain_detach - devres action for devm_pm_domain_attach() to
+ * detach a device from its domain.
+ * @dev: device to detach.
+ * @res: indicate if the device should be powered off
+ *
+ * This function reverse the actions from devm_pm_domain_attach().
+ * It will be invoked during the remove phase from drivers implicitly.
+ */
+static void devm_pm_domain_detach(struct device *dev, void *res)
+{
+	bool *power_off = res;
+
+	dev_pm_domain_detach(dev, *power_off);
+}
+
+/**
+ * devm_pm_domain_attach - devres-enabled version of dev_pm_domain_attach()
+ * @dev: Device to attach.
+ * @power_on: Use to indicate whether we should power on the device
+ *            when attaching.
+ *
+ * NOTE: this will also handle calling dev_pm_domain_detach() for
+ * you during remove phase.
+ *
+ * Returns 0 on successfully attached PM domain, or a negative error code in
+ * case of a failure.
+ */
+int devm_pm_domain_attach(struct device *dev, bool power_on)
+{
+	bool *power_off;
+	int ret;
+
+	power_off = devres_alloc(devm_pm_domain_detach, sizeof(*power_off), GFP_KERNEL);
+	if (!power_off)
+		return -ENOMEM;
+
+	ret = dev_pm_domain_attach(dev, power_on);
+	if (ret) {
+		devres_free(power_off);
+		return ret;
+	}
+
+	*power_off = power_on;
+	devres_add(dev, power_off);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(devm_pm_domain_attach);
+
+/**
  * dev_pm_domain_attach_by_id - Associate a device with one of its PM domains.
  * @dev: The device used to lookup the PM domain.
  * @index: The index of the PM domain.

@@ -535,7 +535,7 @@ static int i2c_device_probe(struct device *dev)
 	if (status < 0)
 		goto err_clear_wakeup_irq;
 
-	status = dev_pm_domain_attach(&client->dev, true);
+	status = dev_pm_domain_attach(&client->dev, PD_FLAG_ATTACH_POWER_ON);
 	if (status)
 		goto err_clear_wakeup_irq;
 

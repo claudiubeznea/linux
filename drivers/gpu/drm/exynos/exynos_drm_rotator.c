@@ -287,6 +287,8 @@ static int rotator_probe(struct platform_device *pdev)
 	if (!rot)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, rot);
+
 	variant = of_device_get_match_data(dev);
 	rot->formats = variant->formats;
 	rot->num_formats = variant->num_formats;
@@ -315,7 +317,6 @@ static int rotator_probe(struct platform_device *pdev)
 	pm_runtime_use_autosuspend(dev);
 	pm_runtime_set_autosuspend_delay(dev, ROTATOR_AUTOSUSPEND_DELAY);
 	pm_runtime_enable(dev);
-	platform_set_drvdata(pdev, rot);
 
 	ret = component_add(dev, &rotator_component_ops);
 	if (ret)

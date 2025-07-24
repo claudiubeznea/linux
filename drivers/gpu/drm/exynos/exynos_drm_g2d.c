@@ -1456,6 +1456,8 @@ static int g2d_probe(struct platform_device *pdev)
 	if (!g2d)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, g2d);
+
 	g2d->runqueue_slab = kmem_cache_create("g2d_runqueue_slab",
 			sizeof(struct g2d_runqueue_node), 0, 0, NULL);
 	if (!g2d->runqueue_slab)
@@ -1510,8 +1512,6 @@ static int g2d_probe(struct platform_device *pdev)
 	}
 
 	g2d->max_pool = MAX_POOL;
-
-	platform_set_drvdata(pdev, g2d);
 
 	ret = component_add(dev, &g2d_component_ops);
 	if (ret < 0) {

@@ -494,6 +494,8 @@ static int scaler_probe(struct platform_device *pdev)
 	if (!scaler)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, scaler);
+
 	scaler->scaler_data =
 		(struct scaler_data *)of_device_get_match_data(dev);
 
@@ -525,7 +527,6 @@ static int scaler_probe(struct platform_device *pdev)
 	pm_runtime_use_autosuspend(dev);
 	pm_runtime_set_autosuspend_delay(dev, SCALER_AUTOSUSPEND_DELAY);
 	pm_runtime_enable(dev);
-	platform_set_drvdata(pdev, scaler);
 
 	ret = component_add(dev, &scaler_component_ops);
 	if (ret)

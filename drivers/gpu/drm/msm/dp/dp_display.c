@@ -1432,7 +1432,6 @@ static void msm_dp_display_remove(struct platform_device *pdev)
 
 	component_del(&pdev->dev, &msm_dp_display_comp_ops);
 	msm_dp_display_deinit_sub_modules(dp);
-	platform_set_drvdata(pdev, NULL);
 }
 
 static int msm_dp_pm_runtime_suspend(struct device *dev)

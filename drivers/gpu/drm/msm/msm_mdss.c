@@ -409,6 +409,8 @@ static struct msm_mdss *msm_mdss_init(struct platform_device *pdev, bool is_mdp5
 	if (!msm_mdss)
 		return ERR_PTR(-ENOMEM);
 
+	platform_set_drvdata(pdev, msm_mdss);
+
 	msm_mdss->mdss_data = qcom_ubwc_config_get_data();
 	if (IS_ERR(msm_mdss->mdss_data))
 		return ERR_CAST(msm_mdss->mdss_data);
@@ -508,8 +510,6 @@ static int mdss_probe(struct platform_device *pdev)
 	mdss = msm_mdss_init(pdev, is_mdp5);
 	if (IS_ERR(mdss))
 		return PTR_ERR(mdss);
-
-	platform_set_drvdata(pdev, mdss);
 
 	/*
 	 * MDP5/DPU based devices don't have a flat hierarchy. There is a top

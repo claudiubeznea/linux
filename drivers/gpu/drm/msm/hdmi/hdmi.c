@@ -282,6 +282,8 @@ static int msm_hdmi_dev_probe(struct platform_device *pdev)
 	if (!hdmi)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, hdmi);
+
 	hdmi->pdev = pdev;
 	hdmi->config = config;
 	spin_lock_init(&hdmi->reg_lock);
@@ -366,8 +368,6 @@ static int msm_hdmi_dev_probe(struct platform_device *pdev)
 	ret = devm_pm_runtime_enable(&pdev->dev);
 	if (ret)
 		goto err_put_phy;
-
-	platform_set_drvdata(pdev, hdmi);
 
 	ret = component_add(&pdev->dev, &msm_hdmi_ops);
 	if (ret)

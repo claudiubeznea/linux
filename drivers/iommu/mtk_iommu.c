@@ -1259,6 +1259,9 @@ static int mtk_iommu_probe(struct platform_device *pdev)
 	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+
+	platform_set_drvdata(pdev, data);
+
 	data->dev = dev;
 	data->plat_data = of_device_get_match_data(dev);
 
@@ -1366,7 +1369,6 @@ static int mtk_iommu_probe(struct platform_device *pdev)
 		}
 	}
 
-	platform_set_drvdata(pdev, data);
 	mutex_init(&data->mutex);
 
 	if (MTK_IOMMU_HAS_FLAG(data->plat_data, SHARE_PGTABLE)) {

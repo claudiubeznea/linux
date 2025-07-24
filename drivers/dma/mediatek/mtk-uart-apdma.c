@@ -485,6 +485,8 @@ static int mtk_uart_apdma_probe(struct platform_device *pdev)
 	if (!mtkd)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, mtkd);
+
 	mtkd->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(mtkd->clk)) {
 		dev_err(&pdev->dev, "No clock specified\n");
@@ -553,8 +555,6 @@ static int mtk_uart_apdma_probe(struct platform_device *pdev)
 	rc = dma_async_device_register(&mtkd->ddev);
 	if (rc)
 		goto rpm_disable;
-
-	platform_set_drvdata(pdev, mtkd);
 
 	/* Device-tree DMA controller registration */
 	rc = of_dma_controller_register(np, of_dma_xlate_by_chan_id, mtkd);

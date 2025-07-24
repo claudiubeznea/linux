@@ -366,6 +366,8 @@ static int ipu_prg_probe(struct platform_device *pdev)
 	if (!prg)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, prg);
+
 	prg->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(prg->regs))
 		return PTR_ERR(prg->regs);
@@ -411,7 +413,6 @@ static int ipu_prg_probe(struct platform_device *pdev)
 	pm_runtime_enable(dev);
 
 	prg->dev = dev;
-	platform_set_drvdata(pdev, prg);
 	mutex_lock(&ipu_prg_list_mutex);
 	list_add(&prg->list, &ipu_prg_list);
 	mutex_unlock(&ipu_prg_list_mutex);

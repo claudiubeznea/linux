@@ -426,6 +426,8 @@ static int mxc_gpio_probe(struct platform_device *pdev)
 	if (!port)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, port);
+
 	port->dev = &pdev->dev;
 	port->hwdata = device_get_match_data(&pdev->dev);
 
@@ -525,7 +527,6 @@ static int mxc_gpio_probe(struct platform_device *pdev)
 
 	list_add_tail(&port->node, &mxc_gpio_ports);
 
-	platform_set_drvdata(pdev, port);
 	pm_runtime_put_autosuspend(&pdev->dev);
 
 	return 0;

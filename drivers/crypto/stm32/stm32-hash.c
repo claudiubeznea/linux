@@ -2344,6 +2344,8 @@ static int stm32_hash_probe(struct platform_device *pdev)
 	if (!hdev)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, hdev);
+
 	hdev->io_base = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
 	if (IS_ERR(hdev->io_base))
 		return PTR_ERR(hdev->io_base);
@@ -2404,8 +2406,6 @@ static int stm32_hash_probe(struct platform_device *pdev)
 	}
 
 	hdev->dev = dev;
-
-	platform_set_drvdata(pdev, hdev);
 
 	ret = stm32_hash_dma_init(hdev);
 	switch (ret) {

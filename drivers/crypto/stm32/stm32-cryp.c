@@ -2578,6 +2578,8 @@ static int stm32_cryp_probe(struct platform_device *pdev)
 	if (!cryp)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, cryp);
+
 	cryp->caps = of_device_get_match_data(dev);
 	if (!cryp->caps)
 		return -ENODEV;
@@ -2632,8 +2634,6 @@ static int stm32_cryp_probe(struct platform_device *pdev)
 		udelay(2);
 		reset_control_deassert(rst);
 	}
-
-	platform_set_drvdata(pdev, cryp);
 
 	ret = stm32_cryp_dma_init(cryp);
 	switch (ret) {

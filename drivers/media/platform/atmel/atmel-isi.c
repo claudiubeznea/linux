@@ -1190,6 +1190,8 @@ static int atmel_isi_probe(struct platform_device *pdev)
 	if (!isi)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, isi);
+
 	isi->pclk = devm_clk_get(&pdev->dev, "isi_clk");
 	if (IS_ERR(isi->pclk))
 		return PTR_ERR(isi->pclk);
@@ -1294,7 +1296,6 @@ static int atmel_isi_probe(struct platform_device *pdev)
 
 	pm_suspend_ignore_children(&pdev->dev, true);
 	pm_runtime_enable(&pdev->dev);
-	platform_set_drvdata(pdev, isi);
 	return 0;
 
 err_req_irq:

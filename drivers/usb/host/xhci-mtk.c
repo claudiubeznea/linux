@@ -528,6 +528,13 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 	if (!mtk)
 		return -ENOMEM;
 
+	/*
+	 * USB 2.0 roothub is stored in the platform_device.
+	 * Swap it with mtk HCD.
+	 */
+	mtk->hcd = platform_get_drvdata(pdev);
+	platform_set_drvdata(pdev, mtk);
+
 	mtk->dev = dev;
 
 	ret = xhci_mtk_vregs_get(mtk);
@@ -594,13 +601,6 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto disable_clk;
 	}
-
-	/*
-	 * USB 2.0 roothub is stored in the platform_device.
-	 * Swap it with mtk HCD.
-	 */
-	mtk->hcd = platform_get_drvdata(pdev);
-	platform_set_drvdata(pdev, mtk);
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mac");
 	hcd->regs = devm_ioremap_resource(dev, res);

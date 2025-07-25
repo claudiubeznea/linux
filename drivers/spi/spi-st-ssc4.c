@@ -283,6 +283,8 @@ static int spi_st_probe(struct platform_device *pdev)
 	if (!host)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, host);
+
 	host->dev.of_node		= np;
 	host->mode_bits			= MODEBITS;
 	host->setup			= spi_st_setup;
@@ -346,8 +348,6 @@ static int spi_st_probe(struct platform_device *pdev)
 	/* by default the device is on */
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
-
-	platform_set_drvdata(pdev, host);
 
 	ret = devm_spi_register_controller(&pdev->dev, host);
 	if (ret) {

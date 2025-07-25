@@ -185,13 +185,6 @@ static int stm32_vrefbuf_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->clk))
 		return PTR_ERR(priv->clk);
 
-	pm_runtime_get_noresume(&pdev->dev);
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev,
-					 STM32_VREFBUF_AUTO_SUSPEND_DELAY_MS);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
-
 	ret = clk_prepare_enable(priv->clk);
 	if (ret) {
 		dev_err(&pdev->dev, "clk prepare failed with error %d\n", ret);
@@ -212,6 +205,13 @@ static int stm32_vrefbuf_probe(struct platform_device *pdev)
 		goto err_clk_dis;
 	}
 	platform_set_drvdata(pdev, rdev);
+
+	pm_runtime_get_noresume(&pdev->dev);
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_set_autosuspend_delay(&pdev->dev,
+					 STM32_VREFBUF_AUTO_SUSPEND_DELAY_MS);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
 
 	pm_runtime_put_autosuspend(&pdev->dev);
 

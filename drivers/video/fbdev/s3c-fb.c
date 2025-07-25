@@ -1379,6 +1379,8 @@ static int s3c_fb_probe(struct platform_device *pdev)
 	if (!sfb)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, sfb);
+
 	dev_dbg(dev, "allocate new framebuffer %p\n", sfb);
 
 	sfb->dev = dev;
@@ -1428,7 +1430,6 @@ static int s3c_fb_probe(struct platform_device *pdev)
 
 	dev_dbg(dev, "got resources (regs %p), probing windows\n", sfb->regs);
 
-	platform_set_drvdata(pdev, sfb);
 	pm_runtime_get_sync(sfb->dev);
 
 	/* setup gpio and output polarity controls */

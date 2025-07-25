@@ -812,6 +812,8 @@ static int rga_probe(struct platform_device *pdev)
 	if (!rga)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, rga);
+
 	rga->dev = &pdev->dev;
 	spin_lock_init(&rga->ctrl_lock);
 	mutex_init(&rga->mutex);
@@ -863,7 +865,6 @@ static int rga_probe(struct platform_device *pdev)
 	video_set_drvdata(vfd, rga);
 	rga->vfd = vfd;
 
-	platform_set_drvdata(pdev, rga);
 	rga->m2m_dev = v4l2_m2m_init(&rga_m2m_ops);
 	if (IS_ERR(rga->m2m_dev)) {
 		v4l2_err(&rga->v4l2_dev, "Failed to init mem2mem device\n");

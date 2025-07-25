@@ -1047,6 +1047,8 @@ static int hantro_probe(struct platform_device *pdev)
 	if (!vpu)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, vpu);
+
 	vpu->dev = &pdev->dev;
 	vpu->pdev = pdev;
 	mutex_init(&vpu->vpu_mutex);
@@ -1185,7 +1187,6 @@ static int hantro_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to register v4l2 device\n");
 		goto err_clk_unprepare;
 	}
-	platform_set_drvdata(pdev, vpu);
 
 	vpu->m2m_dev = v4l2_m2m_init(&vpu_m2m_ops);
 	if (IS_ERR(vpu->m2m_dev)) {

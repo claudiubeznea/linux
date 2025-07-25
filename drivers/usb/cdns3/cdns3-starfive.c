@@ -115,6 +115,8 @@ static int cdns_starfive_probe(struct platform_device *pdev)
 	if (!data)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, data);
+
 	data->dev = dev;
 
 	data->stg_syscon =
@@ -152,7 +154,6 @@ static int cdns_starfive_probe(struct platform_device *pdev)
 	device_set_wakeup_capable(dev, true);
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
-	platform_set_drvdata(pdev, data);
 
 	return 0;
 }

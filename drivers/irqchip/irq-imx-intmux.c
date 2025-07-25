@@ -220,6 +220,8 @@ static int imx_intmux_probe(struct platform_device *pdev)
 	if (!data)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, data);
+
 	data->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(data->regs)) {
 		dev_err(&pdev->dev, "failed to initialize reg\n");
@@ -233,10 +235,6 @@ static int imx_intmux_probe(struct platform_device *pdev)
 
 	data->channum = channum;
 	raw_spin_lock_init(&data->lock);
-
-	pm_runtime_get_noresume(&pdev->dev);
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 
 	ret = clk_prepare_enable(data->ipg_clk);
 	if (ret) {
@@ -272,7 +270,9 @@ static int imx_intmux_probe(struct platform_device *pdev)
 						 &data->irqchip_data[i]);
 	}
 
-	platform_set_drvdata(pdev, data);
+	pm_runtime_get_noresume(&pdev->dev);
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
 
 	/*
 	 * Let pm_runtime_put() disable clock.

@@ -5209,11 +5209,6 @@ static int macb_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
-	pm_runtime_set_autosuspend_delay(&pdev->dev, MACB_PM_TIMEOUT);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_runtime_get_noresume(&pdev->dev);
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 	native_io = hw_is_native_io(mem);
 
 	macb_probe_queues(mem, native_io, &queue_mask, &num_queues);
@@ -5222,6 +5217,7 @@ static int macb_probe(struct platform_device *pdev)
 		err = -ENOMEM;
 		goto err_disable_clocks;
 	}
+	platform_set_drvdata(pdev, dev);
 
 	dev->base_addr = regs->start;
 
@@ -5298,7 +5294,16 @@ static int macb_probe(struct platform_device *pdev)
 		bp->hw_dma_cap |= HW_DMA_CAP_64B;
 	}
 #endif
-	platform_set_drvdata(pdev, dev);
+
+	/*
+	 * Setup up runtime PM after HW capabilities along with wakeup
+	 * capabilities were configured.
+	 */
+	pm_runtime_set_autosuspend_delay(&pdev->dev, MACB_PM_TIMEOUT);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	pm_runtime_get_noresume(&pdev->dev);
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
 
 	dev->irq = platform_get_irq(pdev, 0);
 	if (dev->irq < 0) {

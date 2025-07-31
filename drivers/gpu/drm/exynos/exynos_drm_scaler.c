@@ -572,14 +572,14 @@ static int scaler_runtime_suspend(struct device *dev)
 {
 	struct scaler_context *scaler = dev_get_drvdata(dev);
 
-	return  scaler_clk_ctrl(scaler, false);
+	return scaler_clk_ctrl(scaler, false);
 }
 
 static int scaler_runtime_resume(struct device *dev)
 {
 	struct scaler_context *scaler = dev_get_drvdata(dev);
 
-	return  scaler_clk_ctrl(scaler, true);
+	return scaler_clk_ctrl(scaler, true);
 }
 
 static DEFINE_RUNTIME_DEV_PM_OPS(scaler_pm_ops, scaler_runtime_suspend,

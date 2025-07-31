@@ -3263,6 +3263,8 @@ static int sh_eth_drv_probe(struct platform_device *pdev)
 	if (!ndev)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, ndev);
+
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
 
@@ -3414,7 +3416,6 @@ static int sh_eth_drv_probe(struct platform_device *pdev)
 		    (u32)ndev->base_addr, ndev->dev_addr, ndev->irq);
 
 	pm_runtime_put(&pdev->dev);
-	platform_set_drvdata(pdev, ndev);
 
 	return ret;
 

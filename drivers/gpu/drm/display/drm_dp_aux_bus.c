@@ -58,13 +58,14 @@ static int dp_aux_ep_probe(struct device *dev)
 		container_of(aux_ep, struct dp_aux_ep_device_with_data, aux_ep);
 	int ret;
 
-	ret = dev_pm_domain_attach(dev, PD_FLAG_ATTACH_POWER_ON);
+	ret = dev_pm_domain_attach(dev, PD_FLAG_ATTACH_POWER_ON |
+					PD_FLAG_DETACH_POWER_OFF);
 	if (ret)
 		return dev_err_probe(dev, ret, "Failed to attach to PM Domain\n");
 
 	ret = aux_ep_drv->probe(aux_ep);
 	if (ret)
-		goto err_attached;
+		return ret;
 
 	if (aux_ep_with_data->done_probing) {
 		ret = aux_ep_with_data->done_probing(aux_ep->aux);
@@ -88,8 +89,6 @@ static int dp_aux_ep_probe(struct device *dev)
 err_probed:
 	if (aux_ep_drv->remove)
 		aux_ep_drv->remove(aux_ep);
-err_attached:
-	dev_pm_domain_detach(dev, true);
 
 	return ret;
 }
@@ -107,7 +106,6 @@ static void dp_aux_ep_remove(struct device *dev)
 
 	if (aux_ep_drv->remove)
 		aux_ep_drv->remove(aux_ep);
-	dev_pm_domain_detach(dev, true);
 }
 
 /**

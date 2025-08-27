@@ -112,7 +112,8 @@ static int sdw_drv_probe(struct device *dev)
 			name = drv->driver.name;
 
 		dev_err(dev, "Probe of %s failed: %d\n", name, ret);
-		dev_pm_domain_detach(dev, false);
+		if (!dev_pm_domain_allow_detach_on_unbind_cleanup())
+			dev_pm_domain_detach(dev, false);
 		return ret;
 	}
 
@@ -172,7 +173,8 @@ static int sdw_drv_remove(struct device *dev)
 	if (drv->remove)
 		ret = drv->remove(slave);
 
-	dev_pm_domain_detach(dev, false);
+	if (!dev_pm_domain_allow_detach_on_unbind_cleanup())
+		dev_pm_domain_detach(dev, false);
 
 	return ret;
 }
